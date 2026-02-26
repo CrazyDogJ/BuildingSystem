@@ -31,7 +31,7 @@ struct FSerializableBuildingVertex
 	FGraphVertexHandle Handle;
 	
 	UPROPERTY(SaveGame)
-	bool bIsRooted;
+	bool bIsRooted = false;
 };
 
 USTRUCT(BlueprintType)
