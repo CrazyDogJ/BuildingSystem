@@ -21,8 +21,10 @@ class BUILDINGSYSTEM_API UBuildingActorDescription : public UObject
 	GENERATED_BODY()
 	
 public:
+#if WITH_EDITOR
 	/** Enable world context functions calling for blueprint users. */
 	virtual bool ImplementsGetWorld() const override { return true; }
+#endif
 	virtual class UWorld* GetWorld() const override;
 
 	UPROPERTY()
