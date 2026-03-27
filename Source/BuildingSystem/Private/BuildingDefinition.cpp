@@ -72,6 +72,7 @@ ABuildingPreviewActor* UBuildingDefinition::SpawnBuildingPreviewActor(const UObj
 	
 	const auto NewActor = World->SpawnActor(BuildingActorDescription->BuildingPreviewActorClass);
 	const auto NewBuildingPreviewActor = Cast<ABuildingPreviewActor>(NewActor);
+	NewBuildingPreviewActor->BuildingDefinition = this;
 	BuildingActorDescription->BP_BuildingPreviewActorConstructionEvent(NewBuildingPreviewActor);
 
 	return NewBuildingPreviewActor;
@@ -83,11 +84,48 @@ UBuildingActorDescription* UBuildingDefinition::GetBuildingActorDescription(cons
 	return BuildingActorDescription;
 }
 
-#if WITH_EDITOR
-void UBuildingDefinition::PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent)
+FInstancedStruct UBuildingDefinition::FindFragmentByClass(const UScriptStruct* StructType, bool& bValid) const
 {
-	Super::PostEditChangeProperty(PropertyChangedEvent);
+	FInstancedStruct EmptyStruct;
+	EmptyStruct.InitializeAs(StructType);
 
+	if (const auto Found = TypeLookup.Find(StructType))
+	{
+		FInstancedStruct Dummy;
+		Dummy.InitializeAs(DefaultFragments[*Found].GetScriptStruct());
+
+		if (Dummy.Identical(&EmptyStruct, 0))
+		{
+			bValid = true;
+			return DefaultFragments[*Found];
+		}
+	}
+	
+	bValid = false;
+	return FInstancedStruct();
+}
+
+#if WITH_EDITOR
+void UBuildingDefinition::RebuildLookup(const FPropertyChangedEvent& PropertyChangedEvent)
+{
+	if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(ThisClass, DefaultFragments))
+	{
+		// Update lookup pre save.
+		TypeLookup.Empty();
+	
+		for (int i = 0; i < DefaultFragments.Num(); i++)
+		{
+			if (DefaultFragments[i].IsValid())
+			{
+				auto Type = DefaultFragments[i].GetScriptStruct();
+				TypeLookup.Add(Type, i);
+			}
+		}
+	}
+}
+
+void UBuildingDefinition::RefreshLocalizationKey(const FPropertyChangedEvent& PropertyChangedEvent)
+{
 	// Localization.
 	if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(ThisClass, BuildingId) ||
 		PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(ThisClass, BuildingDisplayName) ||
@@ -99,5 +137,17 @@ void UBuildingDefinition::PostEditChangeProperty(struct FPropertyChangedEvent& P
 			BuildingDescription = FText::ChangeKey(TEXT("BuildingSystem"), BuildingId + "Description", BuildingDescription);
 		}
 	}
+}
+
+void UBuildingDefinition::PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent)
+{
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+
+	Modify();
+	RebuildLookup(PropertyChangedEvent);
+	RefreshLocalizationKey(PropertyChangedEvent);
+	
+	// ReSharper disable once CppExpressionWithoutSideEffects
+	MarkPackageDirty();
 }
 #endif

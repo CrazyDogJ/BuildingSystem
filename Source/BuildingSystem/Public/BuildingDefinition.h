@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Engine/DataAsset.h"
+#include "StructUtils/InstancedStruct.h"
 #include "BuildingDefinition.generated.h"
 
 class ABuildingPreviewActor;
@@ -46,16 +47,14 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Basic Info")
 	FText BuildingDescription;
 
+	/** Determine what default properties the building has. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta=(ExcludeBaseStruct), Category = "Additional Info")
+	TArray<FInstancedStruct> DefaultFragments;
+	
 	/** Building's actor description, used for spawning building actor. */
 	UPROPERTY(EditDefaultsOnly, Category = "Actor Description", Instanced)
 	UBuildingActorDescription* BuildingActorDescription;
-
-	//UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Snap Settings")
-	//TArray<FBuildingSnapBox> SnapBoxes;
-
-	//UFUNCTION(BlueprintCallable)
-	//TArray<UBoxComponent*> AddSnapBoxes(AActor* ActorToAdd);
-
+	
 	UFUNCTION(BlueprintCallable, meta = (WorldContext = "WorldContextObject"))
 	ABuildingActor* SpawnBuildingActor(const UObject* WorldContextObject, const FTransform& InTransform);
 
@@ -64,8 +63,33 @@ public:
 
 	UFUNCTION(BlueprintPure)
 	UBuildingActorDescription* GetBuildingActorDescription(const UObject* WorldContextObject) const;
+	
+public:
+	// Return default item fragment.
+	template <typename T>
+		const T* GetFragmentPtr() const
+	{
+		const UScriptStruct* StructType = T::StaticStruct();
+		if (const auto Found = TypeLookup.Find(StructType))
+		{
+			return DefaultFragments[*Found].GetPtr<T>();
+		}
+		
+		return nullptr;
+	}
 
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Building System")
+	UPARAM(DisplayName = "Property")
+	FInstancedStruct FindFragmentByClass(const UScriptStruct* StructType, bool& bValid) const;
+	
 #if WITH_EDITOR
+	void RebuildLookup(const FPropertyChangedEvent& PropertyChangedEvent);
+	void RefreshLocalizationKey(const FPropertyChangedEvent& PropertyChangedEvent);
+	
 	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif
+
+	// Accelerate look up.
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, AdvancedDisplay, Category = "Additional Info")
+	TMap<const UScriptStruct*, int> TypeLookup;
 };

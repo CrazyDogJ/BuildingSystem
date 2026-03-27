@@ -52,13 +52,13 @@ public:
 	virtual void BuildingPreviewActorConstructionEvent(ABuildingPreviewActor* NewBuildingPreviewActor);
 
 	/** Trace method. */
-	virtual bool TraceToPlaceBuilding(APlayerController* TracePlayerController, FTransform& Transform) { return false; }
+	virtual bool TraceToPlaceBuilding(APlayerController* TracePlayerController, FTransform& Transform, TArray<FHitResult>& OutHitResult) { return false; }
 
 	/** Get neighbour actors( if snap )*/
-	virtual TArray<ABuildingActor*> GetNeighbourActors(ABuildingActor* NewBuildingActor) { return {}; }
+	virtual TArray<ABuildingActor*> GetNeighbourActors(ABuildingActor* NewBuildingActor, const FHitResult& InHitResult) { return {}; }
 
-	/** Should building actor rooted. */
-	virtual bool IsBuildingRooted(ABuildingActor* NewBuildingActor) { return false; }
+	/** Is building actor rooted. */
+	virtual bool IsBuildingRooted(ABuildingActor* NewBuildingActor, const FHitResult& InHitResult) { return false; }
 
 	// BP override events ---------------------------------------------------------------------------------------
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Building Events", DisplayName = "Building Actor Construction Event")
@@ -68,11 +68,11 @@ public:
 	void BP_BuildingPreviewActorConstructionEvent(ABuildingPreviewActor* NewBuildingPreviewActor);
 	
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Building Events", DisplayName = "Trace To Place Building")
-	bool BP_TraceToPlaceBuilding(APlayerController* TracePlayerController, FTransform& Transform);
+	bool BP_TraceToPlaceBuilding(APlayerController* TracePlayerController, FTransform& Transform, TArray<FHitResult>& OutHitResult);
 
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Building Events", DisplayName = "Get Neighbour Actors")
-	TArray<ABuildingActor*> BP_GetNeighbourActors(ABuildingActor* NewBuildingActor);
+	TArray<ABuildingActor*> BP_GetNeighbourActors(ABuildingActor* NewBuildingActor, const FHitResult& InHitResult);
 
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Building Events", DisplayName = "Is Building Rooted")
-	bool BP_IsBuildingRooted(ABuildingActor* NewBuildingActor);
+	bool BP_IsBuildingRooted(ABuildingActor* NewBuildingActor, const FHitResult& InHitResult);
 };

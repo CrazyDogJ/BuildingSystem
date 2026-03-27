@@ -43,15 +43,15 @@ void UBuildingActorDescription::BuildingPreviewActorConstructionEvent(ABuildingP
 	NewBuildingPreviewActor->RootStaticMesh->SetStaticMesh(BuildingMesh);
 }
 
-bool UBuildingActorDescription::BP_IsBuildingRooted_Implementation(ABuildingActor* NewBuildingActor)
+bool UBuildingActorDescription::BP_IsBuildingRooted_Implementation(ABuildingActor* NewBuildingActor, const FHitResult& InHitResult)
 {
-	return IsBuildingRooted(NewBuildingActor);
+	return IsBuildingRooted(NewBuildingActor, InHitResult);
 }
 
 TArray<ABuildingActor*> UBuildingActorDescription::BP_GetNeighbourActors_Implementation(
-	ABuildingActor* NewBuildingActor)
+	ABuildingActor* NewBuildingActor, const FHitResult& InHitResult)
 {
-	return GetNeighbourActors(NewBuildingActor);
+	return GetNeighbourActors(NewBuildingActor, InHitResult);
 }
 
 void UBuildingActorDescription::BP_BuildingPreviewActorConstructionEvent_Implementation(
@@ -61,9 +61,9 @@ void UBuildingActorDescription::BP_BuildingPreviewActorConstructionEvent_Impleme
 }
 
 bool UBuildingActorDescription::BP_TraceToPlaceBuilding_Implementation(APlayerController* TracePlayerController,
-                                                                       FTransform& Transform)
+                                                                       FTransform& Transform, TArray<FHitResult>& OutHitResult)
 {
-	return TraceToPlaceBuilding(TracePlayerController, Transform);
+	return TraceToPlaceBuilding(TracePlayerController, Transform, OutHitResult);
 }
 
 void UBuildingActorDescription::BP_BuildingActorConstructionEvent_Implementation(ABuildingActor* NewBuildingActor)
