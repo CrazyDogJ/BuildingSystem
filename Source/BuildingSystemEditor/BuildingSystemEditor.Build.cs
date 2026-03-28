@@ -10,6 +10,7 @@ public class BuildingSystemEditor : ModuleRules
             new string[]
             {
                 "Core",
+                "UnrealEd"
             }
         );
 
@@ -19,7 +20,8 @@ public class BuildingSystemEditor : ModuleRules
                 "CoreUObject",
                 "Engine",
                 "Slate",
-                "SlateCore", "BuildingSystem"
+                "SlateCore", 
+                "BuildingSystem"
             }
         );
     }
