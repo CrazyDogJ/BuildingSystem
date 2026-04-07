@@ -22,7 +22,7 @@
 		{
 			"Name": "BuildingSystemEditor",
 			"Type": "Editor",
-			"LoadingPhase": "PostEngineInit"
+			"LoadingPhase": "Default"
 		}
 	],
 	"Plugins": [
@@ -31,7 +31,7 @@
 			"Enabled": true
 		},
 		{
-			"Name": "MassGameplay",
+			"Name": "SmartObjects",
 			"Enabled": true
 		}
 	]

@@ -3,11 +3,13 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "BuildingActor.h"
-#include "BuildingGraph.h"
+#include "Actors/BuildingActor.h"
+#include "Graph/BuildingGraph.h"
 #include "Subsystems/WorldSubsystem.h"
 #include "BuildingManagerSubsystem.generated.h"
 
+class UBuildingActorDescription;
+class ABuildingGraphData;
 class ABuildingActor;
 class UBuildingGraph;
 
@@ -28,6 +30,7 @@ public:
 
 	// Graph
 	void InitBuildingGraph();
+	void LoadLevelBuildingGraphData(const ABuildingGraphData* BuildingGraphData) const;
 	void DestroyBuildingGraph();
 	UBuildingGraph* GetBuildingGraph() const;
 
@@ -37,19 +40,30 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
 	void LoadGraphSaveGameData(const FSerializableBuildingGraph& Data);
 
-	ABuildingActor* GetBuildingActorByVertexHandle(FGraphVertexHandle VertexHandle);
+	ABuildingActor* GetBuildingActorByVertexHandle(const FGraphVertexHandle& VertexHandle);
 	
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
 	void DrawGraphDebug();
 	
 	// Building Actors
 	void RegisterBuildingActor(ABuildingActor* BuildingActor);
-	void UnregisterBuildingActor(ABuildingActor* BuildingActor);
-	TArray<ABuildingActor*> GetRegisteredBuildingActors() const;
+	void UnregisterBuildingActor(const ABuildingActor* BuildingActor);
+	TMap<FGraphVertexHandle, ABuildingActor*> GetRegisteredBuildingActors() const;
 
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
 	void AddVertex(ABuildingActor* BuildingActor, bool bIsRooted = false);
 
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
+	void RemoveVertexDirectly(ABuildingActor* BuildingActor);
+	
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
+	void RemoveVertex(ABuildingActor* BuildingActor);
+
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
+	bool IsIslandRooted(ABuildingActor* BuildingActor);
+
+	bool IsIslandRooted(const UGraphVertex* Vertex) const;
+	
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
 	void ConnectVertex(ABuildingActor* BuildingActor1, ABuildingActor* BuildingActor2);
 
@@ -62,12 +76,18 @@ public:
 
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
 	TArray<ABuildingActor*> QueryNearbyActors(TArray<FVector> Locations, float Threshold = 0.01);
+
+	UPROPERTY()
+	TMap<const UBuildingDefinition*, UBuildingActorDescription*> BuildingActorDescriptions;
 	
+	UFUNCTION(BlueprintCallable)
+	UBuildingActorDescription* GetBuildingActorDescription(const UBuildingDefinition* BuildingDefinition);
+
 protected:
 	/** Only managed by authority side. */
 	UPROPERTY()
 	UBuildingGraph* GlobalBuildingGraph;
 
 	UPROPERTY()
-	TArray<ABuildingActor*> RegisteredBuildingActors;
+	TMap<FGraphVertexHandle, ABuildingActor*> RegisteredBuildingActors;
 };

@@ -3,8 +3,8 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "BuildingActor.h"
-#include "BuildingPreviewActor.h"
+#include "Actors/BuildingActor.h"
+#include "Actors/BuildingPreviewActor.h"
 #include "UObject/Object.h"
 #include "BuildingActorDescription.generated.h"
 
@@ -25,13 +25,8 @@ public:
 	/** Enable world context functions calling for blueprint users. */
 	virtual bool ImplementsGetWorld() const override { return true; }
 #endif
+
 	virtual class UWorld* GetWorld() const override;
-
-	UPROPERTY()
-	UWorld* World;
-
-	UFUNCTION(BlueprintCallable)
-	void SetWorld(const UObject* WorldContextObject);
 	
 	/** Building actor class to spawn. */
 	UPROPERTY(BlueprintReadOnly, EditDefaultsOnly, Category = "Default")
@@ -44,6 +39,14 @@ public:
 	/** Building actor root static mesh asset. */
 	UPROPERTY(BlueprintReadOnly, EditDefaultsOnly, Category = "Default")
 	UStaticMesh* BuildingMesh = nullptr;
+
+	/** Building actor smart object definition for ai usage. */
+	UPROPERTY(BlueprintReadOnly, EditDefaultsOnly, Category = "Default")
+	USmartObjectDefinition* BuildingSmartObjectDefinition = nullptr;
+
+	/** Building overlap threshold. */
+	UPROPERTY(BlueprintReadOnly, EditDefaultsOnly, Category = "Default")
+	float BuildingValidThreshold = 5.0f;
 	
 	/** Building actor construction event. Override it you want. */
 	virtual void BuildingActorConstructionEvent(ABuildingActor* NewBuildingActor);
@@ -54,6 +57,8 @@ public:
 	/** Trace method. */
 	virtual bool TraceToPlaceBuilding(APlayerController* TracePlayerController, FTransform& Transform, TArray<FHitResult>& OutHitResult) { return false; }
 
+	virtual ABuildingActor* TraceToGetBuildingActor(APlayerController* TracePlayerController, FHitResult& OutHitResult) const { return nullptr; }
+	
 	/** Get neighbour actors( if snap )*/
 	virtual TArray<ABuildingActor*> GetNeighbourActors(ABuildingActor* NewBuildingActor, const FHitResult& InHitResult) { return {}; }
 
@@ -70,6 +75,9 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Building Events", DisplayName = "Trace To Place Building")
 	bool BP_TraceToPlaceBuilding(APlayerController* TracePlayerController, FTransform& Transform, TArray<FHitResult>& OutHitResult);
 
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Building Events", DisplayName = "Trace To Get Building Actor")
+	ABuildingActor* BP_TraceToGetBuildingActor(APlayerController* TracePlayerController, FHitResult& OutHitResult) const;
+	
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Building Events", DisplayName = "Get Neighbour Actors")
 	TArray<ABuildingActor*> BP_GetNeighbourActors(ABuildingActor* NewBuildingActor, const FHitResult& InHitResult);
 

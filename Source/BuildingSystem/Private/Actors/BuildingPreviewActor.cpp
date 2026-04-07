@@ -1,10 +1,11 @@
 ﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 
-#include "BuildingPreviewActor.h"
+#include "Actors/BuildingPreviewActor.h"
 
 #include "BuildingActorDescription.h"
 #include "BuildingDefinition.h"
+#include "BuildingManagerSubsystem.h"
 
 ABuildingPreviewActor::ABuildingPreviewActor()
 {
@@ -14,18 +15,18 @@ ABuildingPreviewActor::ABuildingPreviewActor()
 
 	RootStaticMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("RootStaticMesh"));
 	RootStaticMesh->SetMobility(EComponentMobility::Movable);
-	// Overlap check collision.
-	RootStaticMesh->SetCollisionEnabled(ECollisionEnabled::Type::QueryOnly);
-	RootStaticMesh->SetCollisionResponseToAllChannels(ECR_Overlap);
+	
+	SetActorEnableCollision(false);
+	RootStaticMesh->SetCollisionResponseToChannels(ECR_Ignore);
 }
 
 UBuildingActorDescription* ABuildingPreviewActor::GetBuildingActorDescription() const
 {
 	if (BuildingDefinition)
 	{
-		if (const auto BuildingActorDesc = BuildingDefinition->GetBuildingActorDescription(this))
+		if (const auto Subsystem = GetWorld()->GetSubsystem<UBuildingManagerSubsystem>())
 		{
-			return BuildingActorDesc;
+			return Subsystem->GetBuildingActorDescription(BuildingDefinition);
 		}
 	}
 	
@@ -59,9 +60,19 @@ void ABuildingPreviewActor::UpdateTraceTransform()
 			LocalTransform.SetRotation(FinalRotation);
 			SetActorTransform(LocalTransform);
 
-			// Overlapping local pawn.
-			TArray<AActor*> OverlappingActors;
-			GetOverlappingActors(OverlappingActors, APawn::StaticClass());
+			// Enough space to build detect.
+			TArray<FHitResult> OverlappingActors;
+			FCollisionQueryParams Params = FCollisionQueryParams();
+			Params.AddIgnoredActor(this);
+
+			if (RootStaticMesh->GetStaticMesh())
+			{
+				const auto Extend = RootStaticMesh->GetStaticMesh()->GetBoundingBox().GetExtent();
+				const auto Center = RootStaticMesh->GetStaticMesh()->GetBoundingBox().GetCenter();
+				GetWorld()->SweepMultiByChannel(OverlappingActors, GetActorLocation() + Center, GetActorLocation() + Center, GetActorRotation().Quaternion(),
+					ECC_Pawn, FCollisionShape::MakeBox(Extend - FVector(Desc->BuildingValidThreshold)), Params);
+			}
+			
 			if (OverlappingActors.Num() > 0)
 			{
 				bCanBuild = false;
@@ -81,6 +92,37 @@ void ABuildingPreviewActor::UpdateTraceTransform()
 	}
 }
 
+void ABuildingPreviewActor::UpdateBuildingSelectTrace()
+{
+	if (const auto Desc = GetBuildingActorDescription())
+	{
+		if (GetWorld()->GetFirstLocalPlayerFromController())
+		{
+			FHitResult HitResult;
+			const auto BuildingActor = Desc->BP_TraceToGetBuildingActor(GetWorld()->GetFirstLocalPlayerFromController()->PlayerController, HitResult);
+			if (SelectedBuildingActor != BuildingActor)
+			{
+				ClearSelectedBuildingMat();
+				SelectedBuildingActor = BuildingActor;
+
+				if (SelectedBuildingActor)
+				{
+					SelectedBuildingActor->RootStaticMesh->SetOverlayMaterial(SelectedOverlayMaterial);
+				}
+			}
+		}
+	}
+}
+
+void ABuildingPreviewActor::ClearSelectedBuildingMat()
+{
+	if (SelectedBuildingActor)
+	{
+		SelectedBuildingActor->RootStaticMesh->SetOverlayMaterial(nullptr);
+		SelectedBuildingActor = nullptr;
+	}
+}
+
 bool ABuildingPreviewActor::AdditionalCanBuild_Implementation() const
 {
 	return true;
@@ -90,8 +132,20 @@ void ABuildingPreviewActor::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 
-	UpdateTraceTransform();
-	UpdateMaterials();
+	// Update actor visibility and collision.
+	RootStaticMesh->SetVisibility(bBuildingMode, true);
+
+	if (bBuildingMode)
+	{
+		UpdateTraceTransform();
+		UpdateMaterials();
+
+		ClearSelectedBuildingMat();
+	}
+	else
+	{
+		UpdateBuildingSelectTrace();
+	}
 }
 
 void ABuildingPreviewActor::BeginPlay()
@@ -112,4 +166,6 @@ void ABuildingPreviewActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	{
 		DisableInput(LocalPlayer->PlayerController);
 	}
+
+	ClearSelectedBuildingMat();
 }

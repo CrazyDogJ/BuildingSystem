@@ -3,24 +3,19 @@
 
 #include "BuildingActorDescription.h"
 
-#include "BuildingActor.h"
-#include "BuildingPreviewActor.h"
+#include "BuildingManagerSubsystem.h"
+#include "Actors/BuildingActor.h"
+#include "Actors/BuildingPreviewActor.h"
 #include "BuildingSystem.h"
 
 class UWorld* UBuildingActorDescription::GetWorld() const
 {
-	if (World)
-		return World;
+	if (const auto OuterSubsystem = Cast<UBuildingManagerSubsystem>(GetOuter()))
+	{
+		return OuterSubsystem->GetWorld();
+	}
 	
 	return UObject::GetWorld();
-}
-
-void UBuildingActorDescription::SetWorld(const UObject* WorldContextObject)
-{
-	if (WorldContextObject)
-	{
-		World = WorldContextObject->GetWorld();
-	}
 }
 
 void UBuildingActorDescription::BuildingActorConstructionEvent(ABuildingActor* NewBuildingActor)
@@ -30,7 +25,6 @@ void UBuildingActorDescription::BuildingActorConstructionEvent(ABuildingActor* N
 		UE_LOG(LogBuildingSystem, Error, TEXT("Construction Event : Building actor ptr is not valid, it should not be triggered! "))
 		return;
 	}
-	NewBuildingActor->RootStaticMesh->SetStaticMesh(BuildingMesh);
 }
 
 void UBuildingActorDescription::BuildingPreviewActorConstructionEvent(ABuildingPreviewActor* NewBuildingPreviewActor)
@@ -40,7 +34,11 @@ void UBuildingActorDescription::BuildingPreviewActorConstructionEvent(ABuildingP
 		UE_LOG(LogBuildingSystem, Error, TEXT("Construction Event : Building preview actor ptr is not valid, it should not be triggered! "))
 		return;
 	}
-	NewBuildingPreviewActor->RootStaticMesh->SetStaticMesh(BuildingMesh);
+}
+
+ABuildingActor* UBuildingActorDescription::BP_TraceToGetBuildingActor_Implementation(APlayerController* TracePlayerController, FHitResult& OutHitResult) const
+{
+	return TraceToGetBuildingActor(TracePlayerController, OutHitResult);
 }
 
 bool UBuildingActorDescription::BP_IsBuildingRooted_Implementation(ABuildingActor* NewBuildingActor, const FHitResult& InHitResult)

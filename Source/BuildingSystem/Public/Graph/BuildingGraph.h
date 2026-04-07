@@ -9,7 +9,7 @@
 #include "BuildingGraph.generated.h"
 
 /**
- * 
+ * Representing a building connection graph.
  */
 UCLASS(BlueprintType)
 class BUILDINGSYSTEM_API UBuildingGraph : public UGraph
@@ -17,18 +17,18 @@ class BUILDINGSYSTEM_API UBuildingGraph : public UGraph
 	GENERATED_BODY()
 	
 public:
+	virtual TObjectPtr<UGraphIsland> CreateTypedIsland() const override;
 	virtual TObjectPtr<UGraphVertex> CreateTypedVertex() const override;
-	bool IsIslandHasRoot(const FGraphIslandHandle& Island) const;
-	void UpdateIslandState(const FGraphIslandHandle& Island);
+	static bool IsIslandRooted(const FGraphIslandHandle& Island);
 };
 
+/**
+ * Building graph vertex save game begin.
+ */
 USTRUCT()
 struct FSerializableBuildingVertex
 {
 	GENERATED_BODY()
-
-	UPROPERTY(SaveGame)
-	FGraphVertexHandle Handle;
 	
 	UPROPERTY(SaveGame)
 	bool bIsRooted = false;
@@ -40,7 +40,7 @@ struct FSerializableBuildingGraph : public FSerializableGraph
 	GENERATED_BODY()
 	
 	UPROPERTY(SaveGame)
-	TArray<FSerializableBuildingVertex> BuildingVertices;
+	TMap<FGraphVertexHandle, FSerializableBuildingVertex> BuildingVertices;
 };
 
 class BUILDINGSYSTEM_API TBuildingGraphSerialization  : public TDefaultGraphSerialization<FSerializableBuildingGraph>

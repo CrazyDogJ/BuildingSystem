@@ -25,6 +25,9 @@ public class BuildingSystem : ModuleRules
 			{
 				"Core", 
 				"GameplayGraph", 
+				"NetCore", 
+				"SmartObjectsModule",
+				"GameplayTags"
 			}
 			);
 			

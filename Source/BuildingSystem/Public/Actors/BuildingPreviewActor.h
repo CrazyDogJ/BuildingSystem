@@ -41,9 +41,20 @@ public:
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "State")
 	bool bCanBuild = false;
 
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "State")
+	bool bBuildingMode = true;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "State")
+	UMaterialInterface* SelectedOverlayMaterial = nullptr;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "State")
+	ABuildingActor* SelectedBuildingActor = nullptr;
+	
 	UBuildingActorDescription* GetBuildingActorDescription() const;
 	void UpdateMaterials() const;
 	void UpdateTraceTransform();
+	void UpdateBuildingSelectTrace();
+	void ClearSelectedBuildingMat();
 
 	UFUNCTION(BlueprintNativeEvent)
 	bool AdditionalCanBuild() const;

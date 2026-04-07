@@ -3,9 +3,9 @@
 
 #include "BuildingDefinition.h"
 
-#include "BuildingActor.h"
+#include "Actors/BuildingActor.h"
 #include "BuildingActorDescription.h"
-#include "BuildingPreviewActor.h"
+#include "Actors/BuildingPreviewActor.h"
 #include "BuildingSystem.h"
 
 /**
@@ -73,15 +73,10 @@ ABuildingPreviewActor* UBuildingDefinition::SpawnBuildingPreviewActor(const UObj
 	const auto NewActor = World->SpawnActor(BuildingActorDescription->BuildingPreviewActorClass);
 	const auto NewBuildingPreviewActor = Cast<ABuildingPreviewActor>(NewActor);
 	NewBuildingPreviewActor->BuildingDefinition = this;
+	NewBuildingPreviewActor->RootStaticMesh->SetStaticMesh(BuildingActorDescription->BuildingMesh);
 	BuildingActorDescription->BP_BuildingPreviewActorConstructionEvent(NewBuildingPreviewActor);
 
 	return NewBuildingPreviewActor;
-}
-
-UBuildingActorDescription* UBuildingDefinition::GetBuildingActorDescription(const UObject* WorldContextObject) const
-{
-	BuildingActorDescription->SetWorld(WorldContextObject);
-	return BuildingActorDescription;
 }
 
 FInstancedStruct UBuildingDefinition::FindFragmentByClass(const UScriptStruct* StructType, bool& bValid) const
