@@ -19,6 +19,7 @@ public:
 	bool IsIslandRooted() const;
 
 protected:
+	UPROPERTY()
 	TArray<UGraphVertex*> RootedVertices;
 
 	virtual void ChangeVertexHandle(const FGraphVertexHandle& OldVertexHandle, const FGraphVertexHandle& NewVertexHandle) override;

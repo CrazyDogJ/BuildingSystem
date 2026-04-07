@@ -28,6 +28,11 @@ UBuildingManagerSubsystem* ABuildingActor::GetBuildingManagerSubsystem() const
 	return GetWorld()->GetSubsystem<UBuildingManagerSubsystem>();
 }
 
+void ABuildingActor::OnRep_BuildingDefinition()
+{
+	InitSmartObject();
+}
+
 void ABuildingActor::SetBuildingDefinition(UBuildingDefinition* InBuildingDefinition)
 {
 	if (!InBuildingDefinition)

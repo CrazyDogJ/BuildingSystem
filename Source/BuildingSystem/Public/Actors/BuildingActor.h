@@ -34,9 +34,12 @@ public:
 
 	UBuildingManagerSubsystem* GetBuildingManagerSubsystem() const;
 	
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Replicated, SaveGame)
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, ReplicatedUsing=OnRep_BuildingDefinition, SaveGame)
 	UBuildingDefinition* BuildingDefinition;
 
+	UFUNCTION()
+	void OnRep_BuildingDefinition();
+	
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
 	UStaticMeshComponent* RootStaticMesh;
 

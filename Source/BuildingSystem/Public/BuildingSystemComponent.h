@@ -49,7 +49,7 @@ struct FBuildingStateList : public FFastArraySerializer
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
 	TArray<FBuildingStateEntry> Entries;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, NotReplicated)
 	UObject* Outer = nullptr;
 
 	UPROPERTY(NotReplicated)
@@ -67,6 +67,13 @@ struct FBuildingStateList : public FFastArraySerializer
 	void PreReplicatedRemove(const TArrayView<int32>& RemovedIndices, int32 FinalSize);
 	void PostReplicatedAdd(const TArrayView<int32>& AddedIndices, int32 FinalSize);
 	void PostReplicatedChange(const TArrayView<int32>& ChangedIndices, int32 FinalSize);
+	
+	bool NetDeltaSerialize(FNetDeltaSerializeInfo& DeltaParams);
+};
+
+template<> struct TStructOpsTypeTraits<FBuildingStateList> : public TStructOpsTypeTraitsBase2<FBuildingStateList>
+{
+	enum { WithNetDeltaSerializer = true };
 };
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FBuildingStateListEvent, int, Index);

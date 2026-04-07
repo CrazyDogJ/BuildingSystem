@@ -129,7 +129,20 @@ void FBuildingStateList::PostReplicatedAdd(const TArrayView<int32>& AddedIndices
 
 void FBuildingStateList::PostReplicatedChange(const TArrayView<int32>& ChangedIndices, int32 FinalSize)
 {
-	// No logic.
+	for (const auto Itr : ChangedIndices)
+	{
+		const auto* Entry = &Entries[Itr];
+		AcceleratorMap.Add(Entry->BuildingDefinition, Itr);
+		if (const auto System = Cast<UBuildingSystemComponent>(Outer))
+		{
+			System->OnBuildingEntryAdded.Broadcast(Itr);
+		}
+	}
+}
+
+bool FBuildingStateList::NetDeltaSerialize(FNetDeltaSerializeInfo& DeltaParams)
+{
+	return FFastArraySerializer::FastArrayDeltaSerialize<FBuildingStateEntry, FBuildingStateList>(Entries, DeltaParams, *this);
 }
 
 UBuildingSystemComponent::UBuildingSystemComponent()
