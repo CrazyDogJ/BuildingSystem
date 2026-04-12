@@ -102,12 +102,3 @@ void ABuildingGraphData::BeginPlay()
 		Subsystem->LoadLevelBuildingGraphData(this);
 	}
 }
-
-void ABuildingGraphData::Tick(float DeltaSeconds)
-{
-	Super::Tick(DeltaSeconds);
-	
-#if WITH_EDITOR
-	// TODO : Draw debug connection graph here.
-#endif
-}
