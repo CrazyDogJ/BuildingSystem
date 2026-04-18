@@ -64,6 +64,8 @@ void ABuildingPreviewActor::UpdateTraceTransform()
 			TArray<FHitResult> OverlappingActors;
 			FCollisionQueryParams Params = FCollisionQueryParams();
 			Params.AddIgnoredActor(this);
+			// Ignore pawn overlap objects.
+			Params.bIgnoreTouches = true;
 
 			if (RootStaticMesh->GetStaticMesh())
 			{
