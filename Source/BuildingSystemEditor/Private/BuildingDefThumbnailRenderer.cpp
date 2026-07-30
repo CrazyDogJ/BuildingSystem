@@ -4,6 +4,8 @@
 #include "BuildingDefThumbnailRenderer.h"
 
 #include "BuildingDefinition.h"
+#include "Engine/Texture2D.h"
+#include "Styling/SlateBrush.h"
 
 bool UBuildingDefThumbnailRenderer::CanVisualizeAsset(UObject* Object)
 {

@@ -33,6 +33,10 @@
 		{
 			"Name": "SmartObjects",
 			"Enabled": true
+		},
+		{
+			"Name": "InstancedStructFragment",
+			"Enabled": true
 		}
 	]
 }

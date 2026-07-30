@@ -21,7 +21,7 @@ public class BuildingSystemEditor : ModuleRules
                 "Engine",
                 "Slate",
                 "SlateCore", 
-                "BuildingSystem"
+                "BuildingSystem",
             }
         );
     }

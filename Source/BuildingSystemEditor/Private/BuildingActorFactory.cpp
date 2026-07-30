@@ -57,5 +57,5 @@ FString UBuildingActorFactory::GetDefaultActorLabel(UObject* Asset) const
 	const auto BuildingDef = Cast<UBuildingDefinition>(Asset);
 	if (!BuildingDef) return Super::GetDefaultActorLabel(Asset);
 	
-	return "Building_" + BuildingDef->BuildingId;
+	return "Building_" + BuildingDef->BaseInfo.Id;
 }

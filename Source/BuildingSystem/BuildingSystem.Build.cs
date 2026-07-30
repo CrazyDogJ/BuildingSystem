@@ -27,7 +27,8 @@ public class BuildingSystem : ModuleRules
 				"GameplayGraph", 
 				"NetCore", 
 				"SmartObjectsModule",
-				"GameplayTags"
+				"GameplayTags", 
+				"InstancedStructFragment"
 			}
 			);
 			
@@ -39,6 +40,7 @@ public class BuildingSystem : ModuleRules
 				"Engine",
 				"Slate",
 				"SlateCore", 
+				"InstancedStructFragment"
 			}
 			);
 		
