@@ -6,6 +6,7 @@
 #include "Graph/GraphVertex.h"
 #include "BuildingGraphVertex.generated.h"
 
+class UBuildingLogicObject;
 class UBuildingManagerSubsystem;
 class UBuildingGraph;
 class ABuildingActor;
@@ -23,6 +24,10 @@ public:
 	UPROPERTY(BlueprintReadOnly)
 	bool bIsRoot = false;
 
+	/** Soft class ptr for building logic to run off state. */
+	UPROPERTY(BlueprintReadOnly)
+	TObjectPtr<UBuildingLogicObject> BuildingLogicObject;
+	
 	/** Get outer building graph. */
 	UBuildingGraph* GetOuterBuildingGraph() const;
 
@@ -31,6 +36,12 @@ public:
 	
 	/** Building actor may not exist if out of loaded streaming level. */
 	ABuildingActor* GetBuildingActor() const;
+	
+	/** Building actor updated logic. To make it update when unloaded from world. */
+	UBuildingLogicObject* GetBuildingLogicObject() const;
+	
+	/** Set building logic from building actor. */
+	void SetBuildingLogicObject(TObjectPtr<UBuildingLogicObject> InBuildingLogicObject, bool bRename = true);
 
 protected:
 	virtual void HandleOnVertexRemoved() override;

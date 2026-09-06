@@ -34,6 +34,9 @@ public:
 	void DestroyBuildingGraph();
 	UBuildingGraph* GetBuildingGraph() const;
 
+	void OnEdgeCreated(const FEdgeSpecifier& EdgeSpecifier);
+	void OnEdgeRemoved(const FEdgeSpecifier& EdgeSpecifier);
+	
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
 	FSerializableBuildingGraph GetGraphSaveGameData();
 
@@ -45,9 +48,17 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
 	void DrawGraphDebug();
 	
+	// Building logic object
+	void RegisterBuildingLogicObject(ABuildingActor* BuildingActor);
+	void UnregisterBuildingLogicObject(ABuildingActor* BuildingActor);
+	
+	// Building actor connected
+	void RegisterBuildingActorConnection(ABuildingActor* BuildingActor);
+	void UnregisterBuildingActorConnection(ABuildingActor* BuildingActor);
+	
 	// Building Actors
 	void RegisterBuildingActor(ABuildingActor* BuildingActor);
-	void UnregisterBuildingActor(const ABuildingActor* BuildingActor);
+	void UnregisterBuildingActor(ABuildingActor* BuildingActor);
 	TMap<FGraphVertexHandle, ABuildingActor*> GetRegisteredBuildingActors() const;
 
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)

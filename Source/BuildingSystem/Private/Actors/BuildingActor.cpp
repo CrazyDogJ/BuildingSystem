@@ -8,6 +8,8 @@
 #include "Actors/BuildingGraphData.h"
 #include "BuildingManagerSubsystem.h"
 #include "SmartObjectComponent.h"
+#include "Engine/ActorChannel.h"
+#include "BuildingLogicObject.h"
 #include "Kismet/GameplayStatics.h"
 #include "Net/UnrealNetwork.h"
 
@@ -26,6 +28,58 @@ ABuildingActor::ABuildingActor()
 UBuildingManagerSubsystem* ABuildingActor::GetBuildingManagerSubsystem() const
 {
 	return GetWorld()->GetSubsystem<UBuildingManagerSubsystem>();
+}
+
+void ABuildingActor::InitLogicObject()
+{
+	if (!HasAuthority())
+	{
+		return;
+	}
+	
+	if (BuildingLogicObjectClass && !BuildingLogicObject)
+	{
+		BuildingLogicObject = NewObject<UBuildingLogicObject>(this, BuildingLogicObjectClass, NAME_None, RF_NoFlags);
+	}
+}
+
+UBuildingLogicObject* ABuildingActor::GetBuildingLogicObject() const
+{
+	return BuildingLogicObject;
+}
+
+void ABuildingActor::SetBuildingLogicObject(UBuildingLogicObject* InBuildingLogicObject)
+{
+	if (!HasAuthority())
+	{
+		return;
+	}
+	
+	BuildingLogicObject = InBuildingLogicObject;
+
+	if (BuildingLogicObject)
+	{
+		if (BuildingLogicObject.GetOuter() != this)
+		{
+			BuildingLogicObject->Rename(nullptr, this);
+		}
+	}
+}
+
+void ABuildingActor::AddConnectedBuildingActors(ABuildingActor* InBuildingActor)
+{
+	if (InBuildingActor)
+	{
+		ConnectedBuildingActors.AddUnique(InBuildingActor);
+	}
+}
+
+void ABuildingActor::RemoveConnectedBuildingActors(ABuildingActor* InBuildingActor)
+{
+	if (InBuildingActor)
+	{
+		ConnectedBuildingActors.Remove(InBuildingActor);
+	}
 }
 
 void ABuildingActor::OnRep_BuildingDefinition()
@@ -47,7 +101,19 @@ void ABuildingActor::SetBuildingDefinition(UBuildingDefinition* InBuildingDefini
 void ABuildingActor::PostGameLoaded()
 {
 	ConstructActor();
+	InitVertexGraph();
 	RegisterVertexHandle();
+}
+
+void ABuildingActor::InitVertexGraph()
+{
+	if (const auto BMS = GetWorld()->GetSubsystem<UBuildingManagerSubsystem>())
+	{
+		if (const auto GraphPtr = BMS->GetBuildingGraph())
+		{
+			GraphVertexHandle = FGraphVertexHandle(GraphVertexHandle.GetUniqueIndex(), GraphPtr);
+		}
+	}
 }
 
 void ABuildingActor::ConstructActor()
@@ -103,6 +169,21 @@ void ABuildingActor::GetLifetimeReplicatedProps(TArray<class FLifetimeProperty>&
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
 	DOREPLIFETIME(ThisClass, BuildingDefinition);
+	DOREPLIFETIME(ThisClass, ConnectedBuildingActors);
+	DOREPLIFETIME(ThisClass, BuildingLogicObject);
+}
+
+bool ABuildingActor::ReplicateSubobjects(class UActorChannel* Channel, class FOutBunch* Bunch,
+	FReplicationFlags* RepFlags)
+{
+	bool WroteSomething = Super::ReplicateSubobjects(Channel, Bunch, RepFlags);
+
+	if (BuildingLogicObject)
+	{
+		WroteSomething |= Channel->ReplicateSubobject(BuildingLogicObject, *Bunch, *RepFlags);
+	}
+
+	return WroteSomething;
 }
 
 const USmartObjectDefinition* ABuildingActor::TryGetSmartObjectDefinition() const
@@ -206,9 +287,12 @@ void ABuildingActor::RegisterVertexHandle()
 	{
 		Subsystem->RegisterBuildingActor(this);
 	}
+	// If we not set logic object, we try to init the logic object 
+	// for the first time building appear in the world
+	InitLogicObject();
 }
 
-void ABuildingActor::UnregisterVertexHandle() const
+void ABuildingActor::UnregisterVertexHandle()
 {
 	if (const auto Subsystem = GetBuildingManagerSubsystem())
 	{

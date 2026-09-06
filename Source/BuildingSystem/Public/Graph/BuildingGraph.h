@@ -8,6 +8,7 @@
 
 #include "BuildingGraph.generated.h"
 
+class UBuildingGraphVertex;
 /**
  * Representing a building connection graph.
  */
@@ -32,6 +33,9 @@ struct FSerializableBuildingVertex
 	
 	UPROPERTY(SaveGame)
 	bool bIsRooted = false;
+	
+	UPROPERTY(SaveGame)
+	TArray<uint8> LogicObjectData;
 };
 
 USTRUCT(BlueprintType)

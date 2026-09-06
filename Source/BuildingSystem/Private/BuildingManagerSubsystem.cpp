@@ -4,6 +4,7 @@
 #include "BuildingManagerSubsystem.h"
 
 #include "BuildingDefinition.h"
+#include "BuildingLogicObject.h"
 #include "Actors/BuildingActor.h"
 #include "Actors/BuildingGraphData.h"
 #include "Graph/BuildingGraph.h"
@@ -31,6 +32,21 @@ void UBuildingManagerSubsystem::Tick(float DeltaTime)
 	{
 		DrawGraphDebug();
 	}
+
+	if (const auto Graph = GetBuildingGraph())
+	{
+		const auto Vs = Graph->GetVertices();
+		for (const auto Pair : Vs)
+		{
+			if (const auto Bv = Cast<UBuildingGraphVertex>(Pair.Value))
+			{
+				if (const auto Logic = Bv->GetBuildingLogicObject())
+				{
+					Logic->NativeTickLogic(DeltaTime);
+				}
+			}
+		}
+	}
 }
 
 void UBuildingManagerSubsystem::Deinitialize()
@@ -45,6 +61,8 @@ void UBuildingManagerSubsystem::Deinitialize()
 void UBuildingManagerSubsystem::InitBuildingGraph()
 {
 	GlobalBuildingGraph = NewObject<UBuildingGraph>(this);
+	GlobalBuildingGraph->OnEdgeCreated.AddUObject(this, &ThisClass::OnEdgeCreated);
+	GlobalBuildingGraph->OnEdgeRemoved.AddUObject(this, &ThisClass::OnEdgeRemoved);
 }
 
 void UBuildingManagerSubsystem::LoadLevelBuildingGraphData(const ABuildingGraphData* BuildingGraphData) const
@@ -61,6 +79,7 @@ void UBuildingManagerSubsystem::LoadLevelBuildingGraphData(const ABuildingGraphD
 
 void UBuildingManagerSubsystem::DestroyBuildingGraph()
 {
+	GlobalBuildingGraph->OnEdgeCreated.RemoveAll(this);
 	GlobalBuildingGraph->ConditionalBeginDestroy();
 	GlobalBuildingGraph = nullptr;
 }
@@ -68,6 +87,34 @@ void UBuildingManagerSubsystem::DestroyBuildingGraph()
 UBuildingGraph* UBuildingManagerSubsystem::GetBuildingGraph() const
 {
 	return GlobalBuildingGraph;
+}
+
+void UBuildingManagerSubsystem::OnEdgeCreated(const FEdgeSpecifier& EdgeSpecifier)
+{
+	const auto VAO = Cast<UBuildingGraphVertex>(EdgeSpecifier.GetVertexHandle1().GetVertex());
+	const auto VBO = Cast<UBuildingGraphVertex>(EdgeSpecifier.GetVertexHandle2().GetVertex());
+
+	const auto VAB = VAO->GetBuildingActor();
+	const auto VBB = VBO->GetBuildingActor();
+	if (VAB && VBB)
+	{
+		VAB->AddConnectedBuildingActors(VBB);
+		VBB->AddConnectedBuildingActors(VAB);
+	}
+}
+
+void UBuildingManagerSubsystem::OnEdgeRemoved(const FEdgeSpecifier& EdgeSpecifier)
+{
+	const auto VAO = Cast<UBuildingGraphVertex>(EdgeSpecifier.GetVertexHandle1().GetVertex());
+	const auto VBO = Cast<UBuildingGraphVertex>(EdgeSpecifier.GetVertexHandle2().GetVertex());
+
+	const auto VAB = VAO->GetBuildingActor();
+	const auto VBB = VBO->GetBuildingActor();
+	if (VAB && VBB)
+	{
+		VAB->RemoveConnectedBuildingActors(VBB);
+		VBB->RemoveConnectedBuildingActors(VAB);
+	}
 }
 
 FSerializableBuildingGraph UBuildingManagerSubsystem::GetGraphSaveGameData()
@@ -145,17 +192,134 @@ void UBuildingManagerSubsystem::DrawGraphDebug()
 	}
 }
 
-void UBuildingManagerSubsystem::RegisterBuildingActor(ABuildingActor* BuildingActor)
+void UBuildingManagerSubsystem::RegisterBuildingLogicObject(ABuildingActor* BuildingActor)
 {
-	RegisteredBuildingActors.Add(BuildingActor->GetGraphVertexHandle(), BuildingActor);
+	if (!BuildingActor)
+	{
+		return;
+	}
+	
+	if (!BuildingActor->HasAuthority())
+	{
+		return;
+	}
+	
+	if (const auto GraphVertex = Cast<UBuildingGraphVertex>(BuildingActor->GetGraphVertexHandle().GetVertex()))
+	{
+		if (const auto LogicObject = GraphVertex->GetBuildingLogicObject())
+		{
+			BuildingActor->SetBuildingLogicObject(LogicObject);
+		}
+		else if (const auto ActorLogicObject = BuildingActor->GetBuildingLogicObject())
+		{
+			GraphVertex->SetBuildingLogicObject(ActorLogicObject, false);
+		}
+	}
 }
 
-void UBuildingManagerSubsystem::UnregisterBuildingActor(const ABuildingActor* BuildingActor)
+void UBuildingManagerSubsystem::UnregisterBuildingLogicObject(ABuildingActor* BuildingActor)
 {
-	if (BuildingActor)
+	if (!BuildingActor)
 	{
-		RegisteredBuildingActors.Remove(BuildingActor->GetGraphVertexHandle());
+		return;
 	}
+
+	if (!BuildingActor->HasAuthority())
+	{
+		return;
+	}
+	
+	if (const auto GraphVertex = Cast<UBuildingGraphVertex>(BuildingActor->GetGraphVertexHandle().GetVertex()))
+	{
+		if (BuildingActor->GetBuildingLogicObject())
+		{
+			GraphVertex->SetBuildingLogicObject(BuildingActor->GetBuildingLogicObject());
+		}
+	}
+}
+
+void UBuildingManagerSubsystem::RegisterBuildingActorConnection(ABuildingActor* BuildingActor)
+{
+	if (!BuildingActor)
+	{
+		return;
+	}
+	
+	if (!BuildingActor->HasAuthority())
+	{
+		return;
+	}
+	
+	// Add connected building actor.
+	if (const auto VertexObject = BuildingActor->GetGraphVertexHandle().GetVertex())
+	{
+		const auto Edges = VertexObject->GetEdges();
+		for (const auto Vertex : Edges)
+		{
+			if (const auto BuildingVertex = Cast<UBuildingGraphVertex>(Vertex.GetVertex()))
+			{
+				if (const auto ConnectedBuilding = BuildingVertex->GetBuildingActor())
+				{
+					BuildingActor->AddConnectedBuildingActors(ConnectedBuilding);
+					ConnectedBuilding->AddConnectedBuildingActors(BuildingActor);
+				}
+			}
+		}
+	}
+}
+
+void UBuildingManagerSubsystem::UnregisterBuildingActorConnection(ABuildingActor* BuildingActor)
+{
+	if (!BuildingActor)
+	{
+		return;
+	}
+	
+	if (!BuildingActor->HasAuthority())
+	{
+		return;
+	}
+	
+	// Remove connected building actors.
+	if (const auto VertexObject = BuildingActor->GetGraphVertexHandle().GetVertex())
+	{
+		const auto Edges = VertexObject->GetEdges();
+		for (const auto Vertex : Edges)
+		{
+			if (const auto BuildingVertex = Cast<UBuildingGraphVertex>(Vertex.GetVertex()))
+			{
+				if (const auto ConnectedBuilding = BuildingVertex->GetBuildingActor())
+				{
+					BuildingActor->RemoveConnectedBuildingActors(ConnectedBuilding);
+					ConnectedBuilding->RemoveConnectedBuildingActors(BuildingActor);
+				}
+			}
+		}
+	}
+}
+
+void UBuildingManagerSubsystem::RegisterBuildingActor(ABuildingActor* BuildingActor)
+{
+	if (!BuildingActor)
+	{
+		return;
+	}
+	
+	RegisteredBuildingActors.Add(BuildingActor->GetGraphVertexHandle(), BuildingActor);
+	RegisterBuildingActorConnection(BuildingActor);
+	RegisterBuildingLogicObject(BuildingActor);
+}
+
+void UBuildingManagerSubsystem::UnregisterBuildingActor(ABuildingActor* BuildingActor)
+{
+	if (!BuildingActor)
+	{
+		return;
+	}
+	
+	UnregisterBuildingLogicObject(BuildingActor);
+	UnregisterBuildingActorConnection(BuildingActor);
+	RegisteredBuildingActors.Remove(BuildingActor->GetGraphVertexHandle());
 }
 
 TMap<FGraphVertexHandle, ABuildingActor*> UBuildingManagerSubsystem::GetRegisteredBuildingActors() const

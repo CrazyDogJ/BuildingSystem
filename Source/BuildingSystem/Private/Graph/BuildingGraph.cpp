@@ -3,6 +3,7 @@
 
 #include "Graph/BuildingGraph.h"
 
+#include "BuildingLogicObject.h"
 #include "Graph/BuildingGraphVertex.h"
 #include "Graph/BuildingGraphIsland.h"
 #include "BuildingSystem.h"
@@ -33,7 +34,13 @@ void TBuildingGraphSerialization::WriteGraphVertex(const FGraphVertexHandle& Ver
 
 	TDefaultGraphSerialization::WriteGraphVertex(VertexHandle, Vertex);
 
-	const auto VertexData = FSerializableBuildingVertex(Cast<UBuildingGraphVertex>(Vertex)->bIsRoot);
+	const auto VertexObject = Cast<UBuildingGraphVertex>(Vertex);
+	TArray<uint8> SavedData;
+	if (VertexObject->BuildingLogicObject)
+	{
+		VertexObject->BuildingLogicObject->GetSaveData(SavedData);
+	}
+	const auto VertexData = FSerializableBuildingVertex(VertexObject->bIsRoot, SavedData);
 	Data.BuildingVertices.Add(VertexHandle, VertexData);
 }
 
@@ -49,6 +56,14 @@ void TBuildingGraphDeserialization::OnDeserializedVertex(const FGraphVertexHandl
 			//UE_LOG(LogBuildingSystem, Warning, TEXT("%s"), *LogString);
 			
 			VertexObject->bIsRoot = Found->bIsRooted;
+			if (!Found->LogicObjectData.IsEmpty())
+			{
+				VertexObject->BuildingLogicObject = NewObject<UBuildingLogicObject>(VertexObject->GetOuterBuildingGraph());
+				if (VertexObject->BuildingLogicObject)
+				{
+					VertexObject->BuildingLogicObject->LoadSaveData(Found->LogicObjectData);
+				}
+			}
 		}
 	}
 }

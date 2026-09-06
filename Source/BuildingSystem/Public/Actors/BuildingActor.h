@@ -8,6 +8,7 @@
 #include "Graph/GraphHandle.h"
 #include "BuildingActor.generated.h"
 
+class UBuildingLogicObject;
 class UBuildingBehaviorDefinition;
 class UBuildingManagerSubsystem;
 class UBuildingDefinition;
@@ -30,6 +31,8 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void PostGameLoaded();
 
+	void InitVertexGraph();
+	
 	void ConstructActor();
 
 	UBuildingManagerSubsystem* GetBuildingManagerSubsystem() const;
@@ -37,6 +40,32 @@ public:
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, ReplicatedUsing=OnRep_BuildingDefinition, SaveGame)
 	UBuildingDefinition* BuildingDefinition;
 
+	UPROPERTY(BlueprintReadOnly, EditDefaultsOnly)
+	TSubclassOf<UBuildingLogicObject> BuildingLogicObjectClass;
+	
+	/** Building logic object, do not set this directly, call SetBuildingLogicObject function instead. */
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Replicated)
+	TObjectPtr<UBuildingLogicObject> BuildingLogicObject;
+	
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
+	void InitLogicObject();
+	
+	UFUNCTION(BlueprintCallable)
+	UBuildingLogicObject* GetBuildingLogicObject() const;
+	
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
+	void SetBuildingLogicObject(UBuildingLogicObject* InBuildingLogicObject);
+	
+	// Buildings that connected to this building.
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Replicated)
+	TArray<TObjectPtr<ABuildingActor>> ConnectedBuildingActors;
+	
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
+	void AddConnectedBuildingActors(ABuildingActor* InBuildingActor);
+	
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
+	void RemoveConnectedBuildingActors(ABuildingActor* InBuildingActor);
+	
 	UFUNCTION()
 	void OnRep_BuildingDefinition();
 	
@@ -68,7 +97,7 @@ public:
 	
 private:
 	void RegisterVertexHandle();
-	void UnregisterVertexHandle() const;
+	void UnregisterVertexHandle();
 	
 	UPROPERTY(SaveGame)
 	FGraphVertexHandle GraphVertexHandle;
@@ -83,6 +112,7 @@ protected:
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	virtual void GetLifetimeReplicatedProps(TArray<class FLifetimeProperty>& OutLifetimeProps) const override;
+	virtual bool ReplicateSubobjects(class UActorChannel* Channel, class FOutBunch* Bunch, FReplicationFlags* RepFlags) override;
 	
 public:
 	// Smart object functions -----------------------------------------

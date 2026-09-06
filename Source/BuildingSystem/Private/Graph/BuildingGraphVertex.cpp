@@ -3,6 +3,7 @@
 
 #include "Graph/BuildingGraphVertex.h"
 
+#include "BuildingLogicObject.h"
 #include "Graph/BuildingGraph.h"
 #include "BuildingManagerSubsystem.h"
 
@@ -33,6 +34,24 @@ ABuildingActor* UBuildingGraphVertex::GetBuildingActor() const
 	}
 
 	return nullptr;
+}
+
+UBuildingLogicObject* UBuildingGraphVertex::GetBuildingLogicObject() const
+{
+	return BuildingLogicObject;
+}
+
+void UBuildingGraphVertex::SetBuildingLogicObject(TObjectPtr<UBuildingLogicObject> InBuildingLogicObject, bool bRename)
+{
+	BuildingLogicObject = InBuildingLogicObject;
+
+	if (BuildingLogicObject && bRename)
+	{
+		if (BuildingLogicObject.GetOuter() != this)
+		{
+			BuildingLogicObject->Rename(nullptr, this);
+		}
+	}
 }
 
 void UBuildingGraphVertex::HandleOnVertexRemoved()
