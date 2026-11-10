@@ -43,11 +43,13 @@ AActor* UBuildingActorFactory::SpawnActor(UObject* InAsset, ULevel* InLevel, con
 	const auto BuildingDesc = BuildingDef->BuildingActorDescription;
 	if (!BuildingDesc) return nullptr;
 
-	const auto World = InLevel->GetWorld();
+	// 修复：编辑器预览或关卡卸载时可能没有生成世界。
+	const auto World = InLevel ? InLevel->GetWorld() : nullptr;
+	if (!World) return nullptr;
 	const auto NewActor = World->SpawnActor(BuildingDesc->BuildingActorClass, &InTransform);
 	
 	const auto NewItemActor = Cast<ABuildingActor>(NewActor);
-	NewItemActor->SetBuildingDefinition(BuildingDef);
+	if (IsValid(NewItemActor)) NewItemActor->SetBuildingDefinition(BuildingDef);
 	
 	return NewActor;
 }

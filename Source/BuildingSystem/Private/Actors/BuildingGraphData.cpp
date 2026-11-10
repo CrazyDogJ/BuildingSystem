@@ -83,13 +83,17 @@ void ABuildingGraphData::OnConstruction(const FTransform& Transform)
 	Super::OnConstruction(Transform);
 
 #if WITH_EDITOR
-	if (BuildingGraph == nullptr && !GWorld->HasBegunPlay())
+	// 修复：使用当前 Actor 所属世界，PIE 中也可能没有临时编辑图。
+	if (!BuildingGraph && GetWorld() && !GetWorld()->HasBegunPlay())
 	{
 		BuildingGraph = NewObject<UBuildingGraph>(this);
 	}
 
-	const TBuildingGraphDeserialization Deserializer(BuildingGraphData);
-	Deserializer >> *BuildingGraph;
+	if (BuildingGraph)
+	{
+		const TBuildingGraphDeserialization Deserializer(BuildingGraphData);
+		Deserializer >> *BuildingGraph;
+	}
 #endif
 }
 

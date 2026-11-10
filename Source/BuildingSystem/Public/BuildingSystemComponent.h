@@ -55,6 +55,8 @@ struct FBuildingStateList : public FFastArraySerializer
 	UPROPERTY(NotReplicated)
 	TMap<const UBuildingDefinition*, int> AcceleratorMap;
 
+	// 修复：复制删除可能移动条目，读取缓存前确认其仍对应同一建筑。
+	int32 FindEntryIndex(const UBuildingDefinition* Definition) const;
 	bool IsBuildingUnlocked(const UBuildingDefinition* InBuildingDefinition) const;
 	int GetBuildingAmount(const UBuildingDefinition* InBuildingDefinition) const;
 	

@@ -19,7 +19,8 @@ ABuildingActor* UBuildingDefinition::SpawnBuildingActor(const UObject* WorldCont
 		return nullptr;
 	}
 	
-	const auto World = WorldContextObject->GetWorld();
+	// 修复：蓝图调用时世界上下文可能为空。
+	const auto World = IsValid(WorldContextObject) ? WorldContextObject->GetWorld() : nullptr;
 	if (!World)
 	{
 		UE_LOG(LogBuildingSystem, Error, TEXT("SpawnBuildingActor : World not valid"))
@@ -45,7 +46,8 @@ ABuildingPreviewActor* UBuildingDefinition::SpawnBuildingPreviewActor(const UObj
 		return nullptr;
 	}
 	
-	const auto World = WorldContextObject->GetWorld();
+	// 修复：蓝图调用时世界上下文可能为空。
+	const auto World = IsValid(WorldContextObject) ? WorldContextObject->GetWorld() : nullptr;
 	if (!World)
 	{
 		UE_LOG(LogBuildingSystem, Error, TEXT("SpawnBuildingPreviewActor : World not valid"))
@@ -54,6 +56,11 @@ ABuildingPreviewActor* UBuildingDefinition::SpawnBuildingPreviewActor(const UObj
 	
 	const auto NewActor = World->SpawnActor(BuildingActorDescription->BuildingPreviewActorClass);
 	const auto NewBuildingPreviewActor = Cast<ABuildingPreviewActor>(NewActor);
+	// 修复：未配置预览类或生成失败时，直接返回空结果。
+	if (!IsValid(NewBuildingPreviewActor))
+	{
+		return nullptr;
+	}
 	NewBuildingPreviewActor->BuildingDefinition = this;
 	NewBuildingPreviewActor->RootStaticMesh->SetStaticMesh(BuildingActorDescription->BuildingMesh);
 	BuildingActorDescription->BP_BuildingPreviewActorConstructionEvent(NewBuildingPreviewActor);

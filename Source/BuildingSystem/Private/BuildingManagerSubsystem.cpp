@@ -67,7 +67,7 @@ void UBuildingManagerSubsystem::InitBuildingGraph()
 
 void UBuildingManagerSubsystem::LoadLevelBuildingGraphData(const ABuildingGraphData* BuildingGraphData) const
 {
-	if (!BuildingGraphData)
+	if (!BuildingGraphData || !GlobalBuildingGraph)
 	{
 		return;
 	}
@@ -79,8 +79,10 @@ void UBuildingManagerSubsystem::LoadLevelBuildingGraphData(const ABuildingGraphD
 
 void UBuildingManagerSubsystem::DestroyBuildingGraph()
 {
+	// 修复：成对解除图事件绑定，并让 GC 按引用关系回收图。
+	if (!GlobalBuildingGraph) return;
 	GlobalBuildingGraph->OnEdgeCreated.RemoveAll(this);
-	GlobalBuildingGraph->ConditionalBeginDestroy();
+	GlobalBuildingGraph->OnEdgeRemoved.RemoveAll(this);
 	GlobalBuildingGraph = nullptr;
 }
 
@@ -94,6 +96,8 @@ void UBuildingManagerSubsystem::OnEdgeCreated(const FEdgeSpecifier& EdgeSpecifie
 	const auto VAO = Cast<UBuildingGraphVertex>(EdgeSpecifier.GetVertexHandle1().GetVertex());
 	const auto VBO = Cast<UBuildingGraphVertex>(EdgeSpecifier.GetVertexHandle2().GetVertex());
 
+	// 修复：边事件触发时端点可能已经从图中移除。
+	if (!IsValid(VAO) || !IsValid(VBO)) return;
 	const auto VAB = VAO->GetBuildingActor();
 	const auto VBB = VBO->GetBuildingActor();
 	if (VAB && VBB)
@@ -108,6 +112,8 @@ void UBuildingManagerSubsystem::OnEdgeRemoved(const FEdgeSpecifier& EdgeSpecifie
 	const auto VAO = Cast<UBuildingGraphVertex>(EdgeSpecifier.GetVertexHandle1().GetVertex());
 	const auto VBO = Cast<UBuildingGraphVertex>(EdgeSpecifier.GetVertexHandle2().GetVertex());
 
+	// 修复：边事件触发时端点可能已经从图中移除。
+	if (!IsValid(VAO) || !IsValid(VBO)) return;
 	const auto VAB = VAO->GetBuildingActor();
 	const auto VBB = VBO->GetBuildingActor();
 	if (VAB && VBB)
@@ -180,7 +186,8 @@ void UBuildingManagerSubsystem::DrawGraphDebug()
 	for (const auto Island : GlobalBuildingGraph->GetIslands())
 	{
 		const auto BuildingIsland = Cast<UBuildingGraphIsland>(Island.Value);
-		const auto Array = Island.Value->GetVertices().Array();
+		if (!BuildingIsland) continue;
+		const auto Array = BuildingIsland->GetVertices().Array();
 		if (Array.IsValidIndex(0))
 		{
 			if (const auto BuildingActor = GetBuildingActorByVertexHandle(Array[0]))
@@ -317,6 +324,8 @@ void UBuildingManagerSubsystem::UnregisterBuildingActor(ABuildingActor* Building
 		return;
 	}
 	
+	// 修复：旧建筑迟到的 EndPlay 不能移除同一顶点的新占用者。
+	if (GetBuildingActorByVertexHandle(BuildingActor->GetGraphVertexHandle()) != BuildingActor) return;
 	UnregisterBuildingLogicObject(BuildingActor);
 	UnregisterBuildingActorConnection(BuildingActor);
 	RegisteredBuildingActors.Remove(BuildingActor->GetGraphVertexHandle());
@@ -329,17 +338,21 @@ TMap<FGraphVertexHandle, ABuildingActor*> UBuildingManagerSubsystem::GetRegister
 
 void UBuildingManagerSubsystem::AddVertex(ABuildingActor* BuildingActor, const bool bIsRooted)
 {
-	if (!BuildingActor) return;
+	// 修复：图已释放时跳过建筑图操作。
+	if (!IsValid(BuildingActor) || !GlobalBuildingGraph) return;
 	
 	const auto NewVertexHandle = GlobalBuildingGraph->CreateVertex();
 	UBuildingGraphVertex* BuildingGraphVtx = Cast<UBuildingGraphVertex>(NewVertexHandle.GetVertex());
+	// 修复：无效顶点不会产生可注册的建筑句柄。
+	if (!BuildingGraphVtx) return;
 	BuildingGraphVtx->bIsRoot = bIsRooted;
 	BuildingActor->SetGraphVertexHandle(NewVertexHandle);
 }
 
 void UBuildingManagerSubsystem::RemoveVertexDirectly(ABuildingActor* BuildingActor)
 {
-	if (!BuildingActor) return;
+	// 修复：图已释放时跳过建筑图操作。
+	if (!IsValid(BuildingActor) || !GlobalBuildingGraph) return;
 	if (!BuildingActor->CanRemoveBuildingActor())
 	{
 		return;
@@ -350,7 +363,8 @@ void UBuildingManagerSubsystem::RemoveVertexDirectly(ABuildingActor* BuildingAct
 
 void UBuildingManagerSubsystem::RemoveVertex(ABuildingActor* BuildingActor)
 {
-	if (!BuildingActor) return;
+	// 修复：图已释放时跳过建筑图操作。
+	if (!IsValid(BuildingActor) || !GlobalBuildingGraph) return;
 	if (!BuildingActor->CanRemoveBuildingActor())
 	{
 		return;
@@ -368,6 +382,8 @@ void UBuildingManagerSubsystem::RemoveVertex(ABuildingActor* BuildingActor)
 		
 		for (const auto Itr : AdjacentVertexPtr)
 		{
+			// 修复：移除顶点触发的回调可能同时销毁相邻顶点。
+			if (!IsValid(Itr)) continue;
 			const auto ParentIsland = Itr->GetParentIsland();
 			if (const auto IslandPtr = Cast<UBuildingGraphIsland>(ParentIsland.GetIsland()))
 			{
@@ -389,7 +405,7 @@ void UBuildingManagerSubsystem::RemoveVertex(ABuildingActor* BuildingActor)
 
 bool UBuildingManagerSubsystem::IsIslandRooted(ABuildingActor* BuildingActor)
 {
-	if (!BuildingActor) return false;
+	if (!IsValid(BuildingActor) || !GlobalBuildingGraph) return false;
 
 	if (const auto VertexPtr = GlobalBuildingGraph->GetSafeVertexFromHandle(BuildingActor->GetGraphVertexHandle()))
 	{
@@ -401,7 +417,7 @@ bool UBuildingManagerSubsystem::IsIslandRooted(ABuildingActor* BuildingActor)
 
 bool UBuildingManagerSubsystem::IsIslandRooted(const UGraphVertex* Vertex) const
 {
-	if (Vertex)
+	if (Vertex && GlobalBuildingGraph)
 	{
 		return GlobalBuildingGraph->IsIslandRooted(Vertex->GetParentIsland());
 	}
@@ -411,7 +427,7 @@ bool UBuildingManagerSubsystem::IsIslandRooted(const UGraphVertex* Vertex) const
 
 void UBuildingManagerSubsystem::ConnectVertex(ABuildingActor* BuildingActor1, ABuildingActor* BuildingActor2)
 {
-	if (BuildingActor1 && BuildingActor2)
+	if (GlobalBuildingGraph && IsValid(BuildingActor1) && IsValid(BuildingActor2))
 	{
 		TArray<FEdgeSpecifier> NodesToConnect;
 		NodesToConnect.Add(FEdgeSpecifier(BuildingActor1->GetGraphVertexHandle(), BuildingActor2->GetGraphVertexHandle()));
@@ -422,12 +438,13 @@ void UBuildingManagerSubsystem::ConnectVertex(ABuildingActor* BuildingActor1, AB
 void UBuildingManagerSubsystem::ConnectNeighbourVertices(ABuildingActor* BuildingActor,
 	TArray<ABuildingActor*> NeighbourActors)
 {
-	if (BuildingActor && NeighbourActors.Num() > 0)
+	if (GlobalBuildingGraph && IsValid(BuildingActor) && NeighbourActors.Num() > 0)
 	{
 		TArray<FEdgeSpecifier> NodesToConnect;
 		for (auto Actor : NeighbourActors)
 		{
-			if (BuildingActor != Actor)
+			// 修复：关卡卸载或蓝图输入可留下空邻居。
+			if (IsValid(Actor) && BuildingActor != Actor)
 			{
 				NodesToConnect.Add(FEdgeSpecifier(BuildingActor->GetGraphVertexHandle(), Actor->GetGraphVertexHandle()));
 			}
@@ -440,6 +457,8 @@ TArray<ABuildingActor*> UBuildingManagerSubsystem::GetNeighbourActors(ABuildingA
 {
 	TArray<ABuildingActor*> NeighbourActors;
 	
+	// 修复：查询允许传入空建筑，图也可能已释放。
+	if (!IsValid(BuildingActor) || !GlobalBuildingGraph) return NeighbourActors;
 	const auto ActorVertexHandle = BuildingActor->GetGraphVertexHandle();
 	const auto FoundVertexObject = GlobalBuildingGraph->GetVertices().Find(ActorVertexHandle);
 	if (FoundVertexObject != nullptr)
@@ -463,6 +482,8 @@ TArray<ABuildingActor*> UBuildingManagerSubsystem::QueryNearbyActors(TArray<FVec
 	
 	for (auto Actor : RegisteredBuildingActors)
 	{
+		// 修复：跳过已销毁但尚未从注册表中移除的建筑。
+		if (!IsValid(Actor.Value)) continue;
 		for (auto Vector : Locations)
 		{
 			if (Vector.Equals(Actor.Value->GetActorLocation(), Threshold))

@@ -22,6 +22,7 @@ public class BuildingSystemEditor : ModuleRules
                 "Slate",
                 "SlateCore", 
                 "BuildingSystem",
+                "InstancedStructFragment"
             }
         );
     }

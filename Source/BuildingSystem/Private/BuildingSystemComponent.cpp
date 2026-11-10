@@ -4,12 +4,27 @@
 
 #include "Net/UnrealNetwork.h"
 
+int32 FBuildingStateList::FindEntryIndex(const UBuildingDefinition* Definition) const
+{
+	if (const int32* Index = AcceleratorMap.Find(Definition))
+	{
+		if (Entries.IsValidIndex(*Index) && Entries[*Index].BuildingDefinition == Definition)
+		{
+			return *Index;
+		}
+	}
+	return Entries.IndexOfByPredicate([Definition](const FBuildingStateEntry& Entry)
+	{
+		return Entry.BuildingDefinition == Definition;
+	});
+}
+
 bool FBuildingStateList::IsBuildingUnlocked(const UBuildingDefinition* InBuildingDefinition) const
 {
-	if (const auto Found = AcceleratorMap.Find(InBuildingDefinition))
+	const int32 Index = FindEntryIndex(InBuildingDefinition);
+	if (Index != INDEX_NONE)
 	{
-		const auto EntryPtr = Entries[*Found];
-		return EntryPtr.bUnlocked;
+		return Entries[Index].bUnlocked;
 	}
 
 	return false;
@@ -17,10 +32,10 @@ bool FBuildingStateList::IsBuildingUnlocked(const UBuildingDefinition* InBuildin
 
 int FBuildingStateList::GetBuildingAmount(const UBuildingDefinition* InBuildingDefinition) const
 {
-	if (const auto Found = AcceleratorMap.Find(InBuildingDefinition))
+	const int32 Index = FindEntryIndex(InBuildingDefinition);
+	if (Index != INDEX_NONE)
 	{
-		const auto EntryPtr = Entries[*Found];
-		return EntryPtr.Amount;
+		return Entries[Index].Amount;
 	}
 
 	return 0;
@@ -33,20 +48,22 @@ FBuildingStateEntry* FBuildingStateList::GetOrAddEntry(const UBuildingDefinition
 		return nullptr;
 	}
 	
-	if (const auto FoundEntryPtr = AcceleratorMap.Find(InBuildingDefinition))
+	const int32 ExistingIndex = FindEntryIndex(InBuildingDefinition);
+	if (ExistingIndex != INDEX_NONE)
 	{
-		return &Entries[*FoundEntryPtr];
+		return &Entries[ExistingIndex];
 	}
 	
 	const auto Index = Entries.Add(InBuildingDefinition);
-	FBuildingStateEntry* EntryPtr = &Entries[Index];
 	AcceleratorMap.Add(InBuildingDefinition, Index);
 	if (const auto System = Cast<UBuildingSystemComponent>(Outer))
 	{
 		System->OnBuildingEntryAdded.Broadcast(Index);
 	}
 	
-	return EntryPtr;
+	// 修复：蓝图监听器可能修改或扩容 Entries，广播后重新获取条目。
+	const int32 CurrentIndex = FindEntryIndex(InBuildingDefinition);
+	return CurrentIndex != INDEX_NONE ? &Entries[CurrentIndex] : nullptr;
 }
 
 void FBuildingStateList::UnlockBuilding(const UBuildingDefinition* InBuildingDefinition)

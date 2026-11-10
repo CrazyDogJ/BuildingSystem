@@ -27,7 +27,8 @@ ABuildingActor::ABuildingActor()
 
 UBuildingManagerSubsystem* ABuildingActor::GetBuildingManagerSubsystem() const
 {
-	return GetWorld()->GetSubsystem<UBuildingManagerSubsystem>();
+	// 修复：未注册或已脱离世界的 Actor 不访问空世界。
+	return UWorld::GetSubsystem<UBuildingManagerSubsystem>(GetWorld());
 }
 
 void ABuildingActor::InitLogicObject()
@@ -271,6 +272,8 @@ void ABuildingActor::UpdateBuildingGraph() const
 
 void ABuildingActor::SetGraphVertexHandle(const FGraphVertexHandle& InGraphVertexHandle)
 {
+	// 修复：更换句柄时释放旧注册，避免表内残留已卸载的建筑。
+	if (GraphVertexHandle != InGraphVertexHandle && GraphVertexHandle.IsValid()) UnregisterVertexHandle();
 	GraphVertexHandle = InGraphVertexHandle;
 	RegisterVertexHandle();
 }
