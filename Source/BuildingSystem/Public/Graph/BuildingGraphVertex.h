@@ -1,4 +1,4 @@
-﻿// Fill out your copyright notice in the Description page of Project Settings.
+// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -28,6 +28,10 @@ public:
 	UPROPERTY(BlueprintReadOnly)
 	TObjectPtr<UBuildingLogicObject> BuildingLogicObject;
 	
+	// Legacy saves need the building actor to supply the original logic class.
+	TArray<uint8> PendingLogicData;
+	TSoftClassPtr<UBuildingLogicObject> PendingLogicClass;
+
 	/** Get outer building graph. */
 	UBuildingGraph* GetOuterBuildingGraph() const;
 

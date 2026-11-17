@@ -1,4 +1,4 @@
-﻿// Fill out your copyright notice in the Description page of Project Settings.
+// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -36,6 +36,9 @@ struct FSerializableBuildingVertex
 	
 	UPROPERTY(SaveGame)
 	TArray<uint8> LogicObjectData;
+
+	UPROPERTY(SaveGame)
+	TSoftClassPtr<class UBuildingLogicObject> LogicClass;
 };
 
 USTRUCT(BlueprintType)

@@ -1,4 +1,4 @@
-﻿// Fill out your copyright notice in the Description page of Project Settings.
+// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "BuildingManagerSubsystem.h"
@@ -67,7 +67,7 @@ void UBuildingManagerSubsystem::InitBuildingGraph()
 
 void UBuildingManagerSubsystem::LoadLevelBuildingGraphData(const ABuildingGraphData* BuildingGraphData) const
 {
-	if (!BuildingGraphData || !GlobalBuildingGraph)
+	if (bLoadedSavedGraph || !BuildingGraphData || !GlobalBuildingGraph)
 	{
 		return;
 	}
@@ -138,13 +138,24 @@ FSerializableBuildingGraph UBuildingManagerSubsystem::GetGraphSaveGameData()
 
 void UBuildingManagerSubsystem::LoadGraphSaveGameData(const FSerializableBuildingGraph& Data)
 {
-	if (!GlobalBuildingGraph)
-	{
-		InitBuildingGraph();
-	}
-
+	if (!GetWorld() || GetWorld()->GetNetMode() == NM_Client) return;
+	// Removing vertices from the live graph destroys their actors. Rebuild in a fresh graph.
+	const auto Actors = RegisteredBuildingActors;
+	RegisteredBuildingActors.Reset();
+	DestroyBuildingGraph();
+	InitBuildingGraph();
+	bLoadedSavedGraph = true;
 	const TBuildingGraphDeserialization Deserializer(Data);
 	Deserializer >> *GlobalBuildingGraph;
+	for (const auto& Pair : Actors)
+	{
+		if (ABuildingActor* Actor = Pair.Value; IsValid(Actor))
+		{
+			Actor->ConnectedBuildingActors.Reset();
+			Actor->InitVertexGraph();
+			if (Actor->GetGraphVertexHandle().HasElement()) RegisterBuildingActor(Actor);
+		}
+	}
 }
 
 ABuildingActor* UBuildingManagerSubsystem::GetBuildingActorByVertexHandle(const FGraphVertexHandle& VertexHandle)
@@ -213,6 +224,16 @@ void UBuildingManagerSubsystem::RegisterBuildingLogicObject(ABuildingActor* Buil
 	
 	if (const auto GraphVertex = Cast<UBuildingGraphVertex>(BuildingActor->GetGraphVertexHandle().GetVertex()))
 	{
+		if (GraphVertex->PendingLogicClass.IsNull() && !GraphVertex->PendingLogicData.IsEmpty())
+		{
+			BuildingActor->InitLogicObject();
+			if (auto* Logic = BuildingActor->GetBuildingLogicObject())
+			{
+				Logic->LoadSaveData(GraphVertex->PendingLogicData);
+				GraphVertex->PendingLogicData.Reset();
+				GraphVertex->SetBuildingLogicObject(Logic, false);
+			}
+		}
 		if (const auto LogicObject = GraphVertex->GetBuildingLogicObject())
 		{
 			BuildingActor->SetBuildingLogicObject(LogicObject);
@@ -517,4 +538,3 @@ UBuildingActorDescription* UBuildingManagerSubsystem::GetBuildingActorDescriptio
 	
 	return nullptr;
 }
-

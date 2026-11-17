@@ -1,4 +1,4 @@
-﻿// Fill out your copyright notice in the Description page of Project Settings.
+// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -95,6 +95,8 @@ public:
 	UBuildingActorDescription* GetBuildingActorDescription(const UBuildingDefinition* BuildingDefinition);
 
 protected:
+	bool bLoadedSavedGraph = false;
+
 	/** Only managed by authority side. */
 	UPROPERTY()
 	UBuildingGraph* GlobalBuildingGraph;
