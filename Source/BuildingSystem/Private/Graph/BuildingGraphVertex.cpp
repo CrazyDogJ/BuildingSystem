@@ -26,11 +26,7 @@ ABuildingActor* UBuildingGraphVertex::GetBuildingActor() const
 {
 	if (const auto Subsystem = GetOuterBuildingSubsystem())
 	{
-		const auto Actors = Subsystem->GetRegisteredBuildingActors();
-		if (const auto Found = Actors.Find(Handle()))
-		{
-			return *Found;
-		}
+		return Subsystem->GetBuildingActorByVertexHandle(Handle());
 	}
 
 	return nullptr;
@@ -43,14 +39,28 @@ UBuildingLogicObject* UBuildingGraphVertex::GetBuildingLogicObject() const
 
 void UBuildingGraphVertex::SetBuildingLogicObject(TObjectPtr<UBuildingLogicObject> InBuildingLogicObject, bool bRename)
 {
-	BuildingLogicObject = InBuildingLogicObject;
-
-	if (BuildingLogicObject && bRename)
+	if (IsValid(InBuildingLogicObject) && bRename && InBuildingLogicObject->GetOuter() != this)
 	{
-		if (BuildingLogicObject.GetOuter() != this)
-		{
-			BuildingLogicObject->Rename(nullptr, this);
-		}
+		const FName Name = MakeUniqueObjectName(this, InBuildingLogicObject->GetClass(), InBuildingLogicObject->GetFName());
+		if (!InBuildingLogicObject->Rename(*Name.ToString(), this, REN_DontCreateRedirectors | REN_DoNotDirty | REN_NonTransactional)) return;
+	}
+	BuildingLogicObject = InBuildingLogicObject;
+}
+
+void UBuildingGraphVertex::InitializeLogicObject(TSubclassOf<UBuildingLogicObject> FallbackClass, UBuildingLogicObject* ExistingLogic)
+{
+	UClass* LogicClass = PendingLogicClass.IsNull() ? FallbackClass.Get() : PendingLogicClass.LoadSynchronous();
+	if (!LogicClass || !LogicClass->IsChildOf(UBuildingLogicObject::StaticClass()) || LogicClass->HasAnyClassFlags(CLASS_Abstract)) return;
+	if (!IsValid(BuildingLogicObject))
+	{
+		SetBuildingLogicObject(IsValid(ExistingLogic) && ExistingLogic->GetClass() == LogicClass
+			? ExistingLogic : NewObject<UBuildingLogicObject>(this, LogicClass));
+	}
+	if (BuildingLogicObject)
+	{
+		BuildingLogicObject->LoadSaveData(PendingLogicData);
+		PendingLogicData.Reset();
+		PendingLogicClass.Reset();
 	}
 }
 

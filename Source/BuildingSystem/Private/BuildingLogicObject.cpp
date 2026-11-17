@@ -34,6 +34,11 @@ void UBuildingLogicObject::LoadSaveData(const TArray<uint8>& InSaveData)
 	}
 }
 
+UWorld* UBuildingLogicObject::GetWorld() const
+{
+	return !IsTemplate() && GetOuter() ? GetOuter()->GetWorld() : nullptr;
+}
+
 void UBuildingLogicObject::NativeTickLogic(float DeltaTime)
 {
 	TickLogic(DeltaTime);

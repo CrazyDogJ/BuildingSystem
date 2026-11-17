@@ -23,14 +23,16 @@ class BUILDINGSYSTEM_API UBuildingManagerSubsystem : public UTickableWorldSubsys
 
 public:
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
-	virtual bool IsTickable() const override { return true; }
+	virtual bool IsTickable() const override;
+	virtual void OnWorldBeginPlay(UWorld& InWorld) override;
 	virtual void Tick(float DeltaTime) override;
 	virtual TStatId GetStatId() const override { RETURN_QUICK_DECLARE_CYCLE_STAT(UBuildingManagerSubsystem, STATGROUP_Tickables); }
 	virtual void Deinitialize() override;
 
 	// Graph
 	void InitBuildingGraph();
-	void LoadLevelBuildingGraphData(const ABuildingGraphData* BuildingGraphData) const;
+	void EnsureLevelBuildingGraphLoaded();
+	void LoadLevelBuildingGraphData(const ABuildingGraphData* BuildingGraphData);
 	void DestroyBuildingGraph();
 	UBuildingGraph* GetBuildingGraph() const;
 
@@ -95,7 +97,9 @@ public:
 	UBuildingActorDescription* GetBuildingActorDescription(const UBuildingDefinition* BuildingDefinition);
 
 protected:
+	void RestoreBuildingGraph(const FSerializableBuildingGraph& Data);
 	bool bLoadedSavedGraph = false;
+	bool bLoadedLevelGraph = false;
 
 	/** Only managed by authority side. */
 	UPROPERTY()

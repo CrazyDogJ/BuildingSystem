@@ -10,6 +10,7 @@
 #include "SmartObjectComponent.h"
 #include "Engine/ActorChannel.h"
 #include "BuildingLogicObject.h"
+#include "Graph/BuildingGraphVertex.h"
 #include "Kismet/GameplayStatics.h"
 #include "Net/UnrealNetwork.h"
 
@@ -33,15 +34,9 @@ UBuildingManagerSubsystem* ABuildingActor::GetBuildingManagerSubsystem() const
 
 void ABuildingActor::InitLogicObject()
 {
-	if (!HasAuthority())
-	{
-		return;
-	}
-	
-	if (BuildingLogicObjectClass && !BuildingLogicObject)
-	{
-		BuildingLogicObject = NewObject<UBuildingLogicObject>(this, BuildingLogicObjectClass, NAME_None, RF_NoFlags);
-	}
+	// Resolve the runtime vertex before creating anything. A streamed actor may still
+	// carry a serialized handle referring to the editor graph (or no graph at all).
+	RegisterVertexHandle();
 }
 
 UBuildingLogicObject* ABuildingActor::GetBuildingLogicObject() const
@@ -51,19 +46,19 @@ UBuildingLogicObject* ABuildingActor::GetBuildingLogicObject() const
 
 void ABuildingActor::SetBuildingLogicObject(UBuildingLogicObject* InBuildingLogicObject)
 {
-	if (!HasAuthority())
-	{
-		return;
-	}
-	
-	BuildingLogicObject = InBuildingLogicObject;
+	if (!HasAuthority()) return;
 
-	if (BuildingLogicObject)
+	if (IsValid(InBuildingLogicObject) && InBuildingLogicObject->GetOuter() != this)
 	{
-		if (BuildingLogicObject.GetOuter() != this)
-		{
-			BuildingLogicObject->Rename(nullptr, this);
-		}
+		// Runtime ownership changes must not dirty map packages or create undo records.
+		const FName Name = MakeUniqueObjectName(this, InBuildingLogicObject->GetClass(), InBuildingLogicObject->GetFName());
+		if (!InBuildingLogicObject->Rename(*Name.ToString(), this, REN_DontCreateRedirectors | REN_DoNotDirty | REN_NonTransactional)) return;
+	}
+	BuildingLogicObject = InBuildingLogicObject;
+	if (auto* Vertex = Cast<UBuildingGraphVertex>(GraphVertexHandle.GetVertex());
+		Vertex && Vertex->GetOuterBuildingSubsystem() == GetBuildingManagerSubsystem() && InBuildingLogicObject)
+	{
+		Vertex->SetBuildingLogicObject(InBuildingLogicObject, false);
 	}
 }
 
@@ -101,15 +96,16 @@ void ABuildingActor::SetBuildingDefinition(UBuildingDefinition* InBuildingDefini
 
 void ABuildingActor::PostGameLoaded()
 {
-	ConstructActor();
 	InitVertexGraph();
 	RegisterVertexHandle();
+	ConstructActor();
 }
 
 void ABuildingActor::InitVertexGraph()
 {
 	if (const auto BMS = GetWorld()->GetSubsystem<UBuildingManagerSubsystem>())
 	{
+		BMS->EnsureLevelBuildingGraphLoaded();
 		if (const auto GraphPtr = BMS->GetBuildingGraph())
 		{
 			GraphVertexHandle = FGraphVertexHandle(GraphVertexHandle.GetUniqueIndex(), GraphPtr);
@@ -153,9 +149,9 @@ void ABuildingActor::OnConstruction(const FTransform& Transform)
 
 void ABuildingActor::BeginPlay()
 {
-	Super::BeginPlay();
-
+	// Blueprint BeginPlay must already see the canonical logic object.
 	RegisterVertexHandle();
+	Super::BeginPlay();
 }
 
 void ABuildingActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
@@ -285,14 +281,12 @@ bool ABuildingActor::CanRemoveBuildingActor_Implementation() const
 
 void ABuildingActor::RegisterVertexHandle()
 {
-	const auto Subsystem = GetBuildingManagerSubsystem();
-	if (Subsystem && GraphVertexHandle.IsValid())
+	if (!HasAuthority() || !GetWorld() || !GetWorld()->IsGameWorld()) return;
+	InitVertexGraph();
+	if (const auto Subsystem = GetBuildingManagerSubsystem(); Subsystem && GraphVertexHandle.HasElement())
 	{
 		Subsystem->RegisterBuildingActor(this);
 	}
-	// If we not set logic object, we try to init the logic object 
-	// for the first time building appear in the world
-	InitLogicObject();
 }
 
 void ABuildingActor::UnregisterVertexHandle()

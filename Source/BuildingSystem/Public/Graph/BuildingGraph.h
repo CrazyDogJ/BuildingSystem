@@ -59,10 +59,13 @@ class BUILDINGSYSTEM_API TBuildingGraphDeserialization : public TDefaultGraphDes
 {
 	
 public:
-	explicit TBuildingGraphDeserialization(const FSerializableBuildingGraph& InData)
-		: TDefaultGraphDeserialization(InData)
+	explicit TBuildingGraphDeserialization(const FSerializableBuildingGraph& InData, bool bInCreateLogicObjects = true)
+		: TDefaultGraphDeserialization(InData), bCreateLogicObjects(bInCreateLogicObjects)
 	{}
 	
 protected:
 	virtual void OnDeserializedVertex(const FGraphVertexHandle& VertexHandle) const override;
+
+private:
+	bool bCreateLogicObjects;
 };

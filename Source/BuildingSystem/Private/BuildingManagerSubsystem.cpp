@@ -10,6 +10,8 @@
 #include "Graph/BuildingGraph.h"
 #include "Graph/BuildingGraphIsland.h"
 #include "Graph/BuildingGraphVertex.h"
+#include "EngineUtils.h"
+#include "UObject/StrongObjectPtr.h"
 
 static TAutoConsoleVariable<bool> CVarDrawDebugBuildingGraph(
 	TEXT("BuildingSystem.DrawDebugGraph"),
@@ -24,9 +26,23 @@ void UBuildingManagerSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	InitBuildingGraph();
 }
 
+bool UBuildingManagerSubsystem::IsTickable() const
+{
+	const UWorld* World = GetWorld();
+	return IsInitialized() && !IsTemplate() && World && World->IsGameWorld()
+		&& World->HasBegunPlay() && World->GetNetMode() != NM_Client && GlobalBuildingGraph;
+}
+
+void UBuildingManagerSubsystem::OnWorldBeginPlay(UWorld& InWorld)
+{
+	Super::OnWorldBeginPlay(InWorld);
+	EnsureLevelBuildingGraphLoaded();
+}
+
 void UBuildingManagerSubsystem::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
+	if (!IsTickable()) return;
 
 	if (CVarDrawDebugBuildingGraph.GetValueOnAnyThread())
 	{
@@ -36,11 +52,14 @@ void UBuildingManagerSubsystem::Tick(float DeltaTime)
 	if (const auto Graph = GetBuildingGraph())
 	{
 		const auto Vs = Graph->GetVertices();
-		for (const auto Pair : Vs)
+		for (const auto& Pair : Vs)
 		{
-			if (const auto Bv = Cast<UBuildingGraphVertex>(Pair.Value))
+			// TickLogic may remove another building or replace the entire saved graph.
+			if (GlobalBuildingGraph != Graph) break;
+			if (Graph->GetVertices().FindRef(Pair.Key) != Pair.Value) continue;
+			if (const auto Bv = Cast<UBuildingGraphVertex>(Pair.Value); IsValid(Bv))
 			{
-				if (const auto Logic = Bv->GetBuildingLogicObject())
+				if (const auto Logic = Bv->GetBuildingLogicObject(); IsValid(Logic))
 				{
 					Logic->NativeTickLogic(DeltaTime);
 				}
@@ -53,6 +72,13 @@ void UBuildingManagerSubsystem::Deinitialize()
 {
 	Super::Deinitialize();
 
+	// Clear actors (Clear logic object when game closed.)
+	for (const auto Actor : GetRegisteredBuildingActors())
+	{
+		UnregisterBuildingActor(Actor.Value);
+	}
+	RegisteredBuildingActors.Empty();
+
 	DestroyBuildingGraph();
 	// Clear bad.
 	BuildingActorDescriptions.Empty();
@@ -60,21 +86,28 @@ void UBuildingManagerSubsystem::Deinitialize()
 
 void UBuildingManagerSubsystem::InitBuildingGraph()
 {
+	if (!GetWorld() || !GetWorld()->IsGameWorld() || GetWorld()->GetNetMode() == NM_Client) return;
 	GlobalBuildingGraph = NewObject<UBuildingGraph>(this);
 	GlobalBuildingGraph->OnEdgeCreated.AddUObject(this, &ThisClass::OnEdgeCreated);
 	GlobalBuildingGraph->OnEdgeRemoved.AddUObject(this, &ThisClass::OnEdgeRemoved);
 }
 
-void UBuildingManagerSubsystem::LoadLevelBuildingGraphData(const ABuildingGraphData* BuildingGraphData) const
+void UBuildingManagerSubsystem::EnsureLevelBuildingGraphLoaded()
 {
-	if (bLoadedSavedGraph || !BuildingGraphData || !GlobalBuildingGraph)
+	if (bLoadedSavedGraph || bLoadedLevelGraph || !GlobalBuildingGraph) return;
+	for (TActorIterator<ABuildingGraphData> It(GetWorld()); It; ++It)
 	{
-		return;
+		LoadLevelBuildingGraphData(*It);
+		break;
 	}
-	
-	GlobalBuildingGraph->Empty();
-	const TBuildingGraphDeserialization Deserializer(BuildingGraphData->BuildingGraphData);
-	Deserializer >> *GlobalBuildingGraph;
+}
+
+void UBuildingManagerSubsystem::LoadLevelBuildingGraphData(const ABuildingGraphData* BuildingGraphData)
+{
+	if (bLoadedSavedGraph || bLoadedLevelGraph || !IsValid(BuildingGraphData) || !GlobalBuildingGraph
+		|| GetWorld()->GetNetMode() == NM_Client) return;
+	bLoadedLevelGraph = true;
+	RestoreBuildingGraph(BuildingGraphData->BuildingGraphData);
 }
 
 void UBuildingManagerSubsystem::DestroyBuildingGraph()
@@ -138,19 +171,51 @@ FSerializableBuildingGraph UBuildingManagerSubsystem::GetGraphSaveGameData()
 
 void UBuildingManagerSubsystem::LoadGraphSaveGameData(const FSerializableBuildingGraph& Data)
 {
-	if (!GetWorld() || GetWorld()->GetNetMode() == NM_Client) return;
-	// Removing vertices from the live graph destroys their actors. Rebuild in a fresh graph.
+	if (!GetWorld() || !GetWorld()->IsGameWorld() || GetWorld()->GetNetMode() == NM_Client) return;
+	bLoadedSavedGraph = true;
+	RestoreBuildingGraph(Data);
+}
+
+void UBuildingManagerSubsystem::RestoreBuildingGraph(const FSerializableBuildingGraph& Data)
+{
+	// Keep identity for existing buildings, including those whose actors are unloaded.
+	TStrongObjectPtr<UBuildingGraph> PreviousGraph(GlobalBuildingGraph);
+	TMap<FGraphVertexHandle, UBuildingLogicObject*> ExistingLogic;
+	if (GlobalBuildingGraph)
+	{
+		for (const auto& Pair : GlobalBuildingGraph->GetVertices())
+		{
+			if (auto* Vertex = Cast<UBuildingGraphVertex>(Pair.Value))
+			{
+				ExistingLogic.Add(Pair.Key, Vertex->GetBuildingLogicObject());
+			}
+		}
+	}
 	const auto Actors = RegisteredBuildingActors;
 	RegisteredBuildingActors.Reset();
 	DestroyBuildingGraph();
 	InitBuildingGraph();
-	bLoadedSavedGraph = true;
-	const TBuildingGraphDeserialization Deserializer(Data);
+	// Defer instance creation until the old instances can be matched by vertex ID.
+	const TBuildingGraphDeserialization Deserializer(Data, false);
 	Deserializer >> *GlobalBuildingGraph;
+	for (const auto& Pair : GlobalBuildingGraph->GetVertices())
+	{
+		auto* Vertex = CastChecked<UBuildingGraphVertex>(Pair.Value);
+		UBuildingLogicObject* Existing = ExistingLogic.FindRef(Pair.Key);
+		Vertex->InitializeLogicObject(IsValid(Existing) ? Existing->GetClass() : nullptr, Existing);
+	}
+	if (PreviousGraph.IsValid())
+	{
+		for (const auto& Pair : PreviousGraph->GetVertices())
+		{
+			CastChecked<UBuildingGraphVertex>(Pair.Value)->SetBuildingLogicObject(nullptr, false);
+		}
+	}
 	for (const auto& Pair : Actors)
 	{
 		if (ABuildingActor* Actor = Pair.Value; IsValid(Actor))
 		{
+			Actor->SetBuildingLogicObject(nullptr);
 			Actor->ConnectedBuildingActors.Reset();
 			Actor->InitVertexGraph();
 			if (Actor->GetGraphVertexHandle().HasElement()) RegisterBuildingActor(Actor);
@@ -212,58 +277,24 @@ void UBuildingManagerSubsystem::DrawGraphDebug()
 
 void UBuildingManagerSubsystem::RegisterBuildingLogicObject(ABuildingActor* BuildingActor)
 {
-	if (!BuildingActor)
-	{
-		return;
-	}
-	
-	if (!BuildingActor->HasAuthority())
-	{
-		return;
-	}
-	
-	if (const auto GraphVertex = Cast<UBuildingGraphVertex>(BuildingActor->GetGraphVertexHandle().GetVertex()))
-	{
-		if (GraphVertex->PendingLogicClass.IsNull() && !GraphVertex->PendingLogicData.IsEmpty())
-		{
-			BuildingActor->InitLogicObject();
-			if (auto* Logic = BuildingActor->GetBuildingLogicObject())
-			{
-				Logic->LoadSaveData(GraphVertex->PendingLogicData);
-				GraphVertex->PendingLogicData.Reset();
-				GraphVertex->SetBuildingLogicObject(Logic, false);
-			}
-		}
-		if (const auto LogicObject = GraphVertex->GetBuildingLogicObject())
-		{
-			BuildingActor->SetBuildingLogicObject(LogicObject);
-		}
-		else if (const auto ActorLogicObject = BuildingActor->GetBuildingLogicObject())
-		{
-			GraphVertex->SetBuildingLogicObject(ActorLogicObject, false);
-		}
-	}
+	if (!IsValid(BuildingActor) || !BuildingActor->HasAuthority() || !GlobalBuildingGraph) return;
+	auto* Vertex = Cast<UBuildingGraphVertex>(BuildingActor->GetGraphVertexHandle().GetVertex());
+	if (!Vertex || Vertex->GetOuterBuildingGraph() != GlobalBuildingGraph) return;
+	Vertex->InitializeLogicObject(BuildingActor->BuildingLogicObjectClass, BuildingActor->GetBuildingLogicObject());
+	BuildingActor->SetBuildingLogicObject(Vertex->GetBuildingLogicObject());
 }
 
 void UBuildingManagerSubsystem::UnregisterBuildingLogicObject(ABuildingActor* BuildingActor)
 {
-	if (!BuildingActor)
+	if (!BuildingActor || !BuildingActor->HasAuthority() || !GlobalBuildingGraph) return;
+	if (GetBuildingActorByVertexHandle(BuildingActor->GetGraphVertexHandle()) != BuildingActor) return;
+	if (auto* Vertex = Cast<UBuildingGraphVertex>(BuildingActor->GetGraphVertexHandle().GetVertex());
+		Vertex && Vertex->GetOuterBuildingGraph() == GlobalBuildingGraph)
 	{
-		return;
+		// Retain the same object outside the streaming level before the actor is collected.
+		Vertex->SetBuildingLogicObject(Vertex->GetBuildingLogicObject());
 	}
-
-	if (!BuildingActor->HasAuthority())
-	{
-		return;
-	}
-	
-	if (const auto GraphVertex = Cast<UBuildingGraphVertex>(BuildingActor->GetGraphVertexHandle().GetVertex()))
-	{
-		if (BuildingActor->GetBuildingLogicObject())
-		{
-			GraphVertex->SetBuildingLogicObject(BuildingActor->GetBuildingLogicObject());
-		}
-	}
+	BuildingActor->SetBuildingLogicObject(nullptr);
 }
 
 void UBuildingManagerSubsystem::RegisterBuildingActorConnection(ABuildingActor* BuildingActor)
@@ -328,14 +359,16 @@ void UBuildingManagerSubsystem::UnregisterBuildingActorConnection(ABuildingActor
 
 void UBuildingManagerSubsystem::RegisterBuildingActor(ABuildingActor* BuildingActor)
 {
-	if (!BuildingActor)
+	if (!IsValid(BuildingActor) || !BuildingActor->HasAuthority() || !GlobalBuildingGraph) return;
+	BuildingActor->InitVertexGraph();
+	if (!BuildingActor->GetGraphVertexHandle().HasElement()) return;
+	if (auto* Previous = GetBuildingActorByVertexHandle(BuildingActor->GetGraphVertexHandle()); Previous && Previous != BuildingActor)
 	{
-		return;
+		UnregisterBuildingActor(Previous);
 	}
-	
 	RegisteredBuildingActors.Add(BuildingActor->GetGraphVertexHandle(), BuildingActor);
-	RegisterBuildingActorConnection(BuildingActor);
 	RegisterBuildingLogicObject(BuildingActor);
+	RegisterBuildingActorConnection(BuildingActor);
 }
 
 void UBuildingManagerSubsystem::UnregisterBuildingActor(ABuildingActor* BuildingActor)
@@ -362,6 +395,8 @@ void UBuildingManagerSubsystem::AddVertex(ABuildingActor* BuildingActor, const b
 	// 修复：图已释放时跳过建筑图操作。
 	if (!IsValid(BuildingActor) || !GlobalBuildingGraph) return;
 	
+	if (!BuildingActor->HasAuthority()) return;
+	EnsureLevelBuildingGraphLoaded();
 	const auto NewVertexHandle = GlobalBuildingGraph->CreateVertex();
 	UBuildingGraphVertex* BuildingGraphVtx = Cast<UBuildingGraphVertex>(NewVertexHandle.GetVertex());
 	// 修复：无效顶点不会产生可注册的建筑句柄。

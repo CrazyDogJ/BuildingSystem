@@ -17,6 +17,7 @@ public:
 	void GetSaveData(TArray<uint8>& OutSaveData);
 	void LoadSaveData(const TArray<uint8>& InSaveData);
 	
+	virtual UWorld* GetWorld() const override;
 	virtual void NativeTickLogic(float DeltaTime);
 	
 	UFUNCTION(BlueprintImplementableEvent)

@@ -50,14 +50,7 @@ void TBuildingGraphDeserialization::OnDeserializedVertex(const FGraphVertexHandl
 	if (!Entry || !Vertex) return;
 
 	Vertex->bIsRoot = Entry->bIsRooted;
-	if (UClass* Class = Entry->LogicClass.LoadSynchronous(); Class && !Class->HasAnyClassFlags(CLASS_Abstract))
-	{
-		Vertex->BuildingLogicObject = NewObject<UBuildingLogicObject>(Vertex, Class);
-		Vertex->BuildingLogicObject->LoadSaveData(Entry->LogicObjectData);
-	}
-	else
-	{
-		Vertex->PendingLogicClass = Entry->LogicClass;
-		Vertex->PendingLogicData = Entry->LogicObjectData;
-	}
+	Vertex->PendingLogicClass = Entry->LogicClass;
+	Vertex->PendingLogicData = Entry->LogicObjectData;
+	if (bCreateLogicObjects) Vertex->InitializeLogicObject();
 }

@@ -29,7 +29,7 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
 	bool bShowGraph = false;
 	
-	UPROPERTY(BlueprintReadOnly, Transient)
+	UPROPERTY(BlueprintReadOnly, Transient, DuplicateTransient)
 	UBuildingGraph* BuildingGraph = nullptr;
 #endif
 	

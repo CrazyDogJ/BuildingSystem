@@ -44,7 +44,7 @@ public:
 	TSubclassOf<UBuildingLogicObject> BuildingLogicObjectClass;
 	
 	/** Building logic object, do not set this directly, call SetBuildingLogicObject function instead. */
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Replicated)
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Replicated, Transient, DuplicateTransient)
 	TObjectPtr<UBuildingLogicObject> BuildingLogicObject;
 	
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)

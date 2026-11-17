@@ -24,7 +24,7 @@ public:
 	UPROPERTY(BlueprintReadOnly)
 	bool bIsRoot = false;
 
-	/** Soft class ptr for building logic to run off state. */
+	/** The one runtime logic instance, retained here even while its Outer is the loaded actor. */
 	UPROPERTY(BlueprintReadOnly)
 	TObjectPtr<UBuildingLogicObject> BuildingLogicObject;
 	
@@ -46,6 +46,9 @@ public:
 	
 	/** Set building logic from building actor. */
 	void SetBuildingLogicObject(TObjectPtr<UBuildingLogicObject> InBuildingLogicObject, bool bRename = true);
+
+	/** Restore pending state, reusing an existing instance when its class matches. */
+	void InitializeLogicObject(TSubclassOf<UBuildingLogicObject> FallbackClass = nullptr, UBuildingLogicObject* ExistingLogic = nullptr);
 
 protected:
 	virtual void HandleOnVertexRemoved() override;

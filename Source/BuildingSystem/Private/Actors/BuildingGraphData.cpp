@@ -25,7 +25,7 @@ ABuildingGraphData::ABuildingGraphData()
 #if WITH_EDITOR
 void ABuildingGraphData::UpdateBuildingGraph()
 {
-	if (BuildingGraph)
+	if (BuildingGraph && GetWorld() && !GetWorld()->IsGameWorld())
 	{
 		BuildingGraph->Empty();
 
@@ -39,6 +39,8 @@ void ABuildingGraphData::UpdateBuildingGraph()
 			if (const auto BuildingVertex = Cast<UBuildingGraphVertex>(NewVertex.GetVertex()))
 			{
 				BuildingVertex->bIsRoot = BuildingActor->bIsRooted;
+				// Store the class so even buildings in initially unloaded cells can run logic.
+				BuildingVertex->PendingLogicClass = BuildingActor->BuildingLogicObjectClass.Get();
 			}
 			BuildingActor->Modify();
 			BuildingActor->SetGraphVertexHandle(NewVertex);
@@ -83,15 +85,21 @@ void ABuildingGraphData::OnConstruction(const FTransform& Transform)
 	Super::OnConstruction(Transform);
 
 #if WITH_EDITOR
-	// 修复：使用当前 Actor 所属世界，PIE 中也可能没有临时编辑图。
-	if (!BuildingGraph && GetWorld() && !GetWorld()->HasBegunPlay())
+	// This graph is an editor authoring cache, never a second runtime simulation.
+	if (!GetWorld() || GetWorld()->IsGameWorld())
+	{
+		BuildingGraph = nullptr;
+		return;
+	}
+	if (!BuildingGraph)
 	{
 		BuildingGraph = NewObject<UBuildingGraph>(this);
 	}
 
 	if (BuildingGraph)
 	{
-		const TBuildingGraphDeserialization Deserializer(BuildingGraphData);
+		BuildingGraph->Empty();
+		const TBuildingGraphDeserialization Deserializer(BuildingGraphData, false);
 		Deserializer >> *BuildingGraph;
 	}
 #endif
